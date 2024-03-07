@@ -1,0 +1,3 @@
+control_name, description, other_names
+nrel_control_btms_ld_l2, controls behind the meter storage and EVSE loads for light duty vehicles charging at level 2, formerly known as control_strategy_B_BTM_RECHARGE
+nrel_control_voltwatt_ld_l2, controls EVSE power to help with voltage regulation for light duty vehicles charging at level 2, formerly known as control_strategy_A_NREL_RECHARGE

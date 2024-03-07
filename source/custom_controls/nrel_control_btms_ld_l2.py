@@ -24,7 +24,7 @@ software.
 '''
 
 
-class control_strategy_B(typeB_control):
+class btms_control(typeB_control):
     
     def __init__(self, base_dir, simulation_time_constraints):        
         super().__init__(base_dir, simulation_time_constraints)

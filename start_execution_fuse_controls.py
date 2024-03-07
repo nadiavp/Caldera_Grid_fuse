@@ -113,8 +113,8 @@ from get_customized_inputs import get_customized_pev_ramping
 #from control_strategy_A import control_strategy_A
 #from control_strategy_B import control_strategy_B
 from control_strategy_C import control_strategy_C
-from control_strategy_A_NREL_RECHARGE import control_strategy_A
-from control_strategy_B_BTM_RECHARGE import control_strategy_B
+from nrel_control_voltwatt_ld_l2 import voltwatt_control
+from nrel_control_btms_ld_l2 import btms_control
 
 #================================================
 
@@ -266,7 +266,7 @@ if __name__ == '__main__':
     #   Control Strategy_A Federate
     #-------------------------------
     json_config_file_name = 'control_strategy_A.json'
-    CS_A_obj = control_strategy_A(io_dir, simulation_time_constraints)    
+    CS_A_obj = voltwatt_control(io_dir, simulation_time_constraints)    
     p = Process(target=typeA_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_A_obj,), name="control_strategy_A_federate")
     processes.append(p)
     
@@ -274,7 +274,7 @@ if __name__ == '__main__':
     #   Control Strategy_B Federate
     #-------------------------------
     json_config_file_name = 'control_strategy_B.json'
-    CS_B_obj = control_strategy_B(io_dir, simulation_time_constraints)    
+    CS_B_obj = btms_control(io_dir, simulation_time_constraints)    
     p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_B_obj,), name="control_strategy_B_federate")
     processes.append(p)
     

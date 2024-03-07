@@ -31,7 +31,7 @@ SOFTWARE. This notice including this sentence must appear on any copies of this 
 software.
 '''
 
-class control_strategy_A(typeA_control):
+class voltwatt_control(typeA_control):
 
     def __init__(self, base_dir, simulation_time_constraints):        
         super().__init__(base_dir, simulation_time_constraints)
