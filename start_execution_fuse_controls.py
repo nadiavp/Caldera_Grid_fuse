@@ -228,7 +228,7 @@ if __name__ == '__main__':
     num_of_federates += 1   # OpenDSS
     num_of_federates += 1   # Caldera_ES500
     num_of_federates += 1   # control_strategy_A
-    num_of_federates += 1   # control_strategy_B
+    #num_of_federates += 1   # control_strategy_B
     #num_of_federates += 1   # control_strategy_C
     
     broker = subprocess.Popen(['helics_broker', '--loglevel=no_print', '-f{}'.format(num_of_federates)])
@@ -276,7 +276,7 @@ if __name__ == '__main__':
     json_config_file_name = 'control_strategy_B.json'
     CS_B_obj = btms_control(io_dir, simulation_time_constraints)    
     p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_B_obj,), name="control_strategy_B_federate")
-    processes.append(p)
+    #processes.append(p)
     
     #-------------------------------
     #   Control Strategy_C Federate

@@ -42,7 +42,7 @@ class voltwatt_control(typeA_control):
     
     
     def get_input_dataset_enum_list(self):
-        return [input_datasets.SE_group_configuration, input_datasets.SE_group_charge_event_data, input_datasets.SEid_to_SE_type]
+        return [input_datasets.SE_group_configuration, input_datasets.SE_group_charge_event_data, input_datasets.SEid_to_SE_type, input_datasets.external_strategies]
 
 
     def load_input_datasets(self, datasets_dict):
@@ -51,7 +51,13 @@ class voltwatt_control(typeA_control):
     
     
     def terminate_this_federate(self):
-        return False
+        print(self.datasets_dict[input_datasets.external_strategies])
+        if "ext0001" in self.datasets_dict[input_datasets.external_strategies]:
+            return False
+        elif "voltwatt_ld_l2" in self.datasets_dict[input_datasets.external_strategies]:
+            return False
+
+        return True
     
     
     def initialize(self):
@@ -77,7 +83,8 @@ class voltwatt_control(typeA_control):
     
     def get_messages_to_request_state_info_from_Caldera(self, next_control_timestep_start_unix_time):
         return_dict = {}
-        return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = [20]
+        #return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = [20]
+        return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0001', 'voltwatt_ld_l2']
         
         # The return value (return_dict) must be a dictionary with Caldera_message_types as keys.
         # If there is nothing to return, return an empty dictionary.
