@@ -354,5 +354,5 @@ class Hierarchical():
 
             SetPoint_Dict = dict(zip(self.data.SE_id,Set_power))
             
-            
+            return SetPoint_Dict
         ''' CORE Consensus control code ends here *** DO NOT MODIFY *** '''

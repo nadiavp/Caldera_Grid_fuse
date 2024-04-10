@@ -52,7 +52,7 @@ class voltwatt_control(typeA_control):
     
     def terminate_this_federate(self):
         print(self.datasets_dict[input_datasets.external_strategies])
-        if "ext0001" in self.datasets_dict[input_datasets.external_strategies]:
+        if "ext0001q" in self.datasets_dict[input_datasets.external_strategies]:
             return False
         elif "voltwatt_ld_l2" in self.datasets_dict[input_datasets.external_strategies]:
             return False
@@ -83,8 +83,8 @@ class voltwatt_control(typeA_control):
     
     def get_messages_to_request_state_info_from_Caldera(self, next_control_timestep_start_unix_time):
         return_dict = {}
-        #return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = [20]
-        return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0001', 'voltwatt_ld_l2']
+        return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = [10,20,30]
+        #return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0001q', 'voltwatt_ld_l2']
         
         # The return value (return_dict) must be a dictionary with Caldera_message_types as keys.
         # If there is nothing to return, return an empty dictionary.
@@ -222,9 +222,9 @@ class voltwatt_control(typeA_control):
                 SE_id_Parse = SE_id_CE[i,:]
     
                 arrival_times_Parse = arrival_time[i,:]
-                #print('arrival times', self.arrival_times)
+                print('arrival times', arrival_time)
                 departure_times_Parse = departure_time[i,:]
-                #print('departure_times', self.departure_times)
+                print('departure_times', departure_time)
                 charging_times_Parse = departure_times_Parse - arrival_times_Parse
                 energy_used_Parse = remaining_charge_energy_ackWh[i,:]
                 SE_group_NODE_Parse = SE_group_NODE[group_id]
@@ -237,10 +237,11 @@ class voltwatt_control(typeA_control):
                 data = DataInputs(comm_delay,num_charging_stations,Node_pu,Vpu_Lower,Vpu_Higher,Voltage_multiplier,CE_by_SE_groups,charge_event_id_Parse,SE_id_Parse,arrival_times_Parse,departure_times_Parse,charging_times_Parse,energy_used_Parse,group_id_Parse,SetPoint_Dict)
                 # Step 2: Run opt code
                 opt_hierarchical = Hierarchical(data,max_charge,next_control_timestep_start_unix_time) 
-                opt_hierarchical.solve_real_time()
+                SetPoint_Dict = opt_hierarchical.solve_real_time()
                 #Step 3: Store results
                 for key, value in SetPoint_Dict.items():
                     Setpoint_updated[key] = value
+                    print(f'powerlimit: {key} set to {value}')
         
         #======================================================
         #      Open-DSS Feedback Control algorithm ends here
@@ -258,16 +259,17 @@ class voltwatt_control(typeA_control):
         PQ_setpoints = []        
         
         if bool(Setpoint_updated):
-            for CE in CE_by_SE_groups:
-                remaining_charge_energy_ackWh = CE.energy_of_complete_charge_ackWh - CE.now_charge_energy_ackWh
-                if 0 < remaining_charge_energy_ackWh:
-                    X = SE_setpoint()
-                    X.SE_id = CE.SE_id
-                    for (SE_id, setpoint) in Setpoint_updated.items():
-                        if  SE_id ==  X.SE_id:
-                            X.PkW = setpoint
-                            X.QkVAR = 0
-                            PQ_setpoints.append(X)
+            for (group_id, active_CEs) in CE_by_SE_groups.items():
+                for CE in active_CEs:
+                    remaining_charge_energy_ackWh = CE.energy_of_complete_charge_ackWh - CE.now_charge_energy_ackWh
+                    if 0 < remaining_charge_energy_ackWh:
+                        X = SE_setpoint()
+                        X.SE_id = CE.SE_id
+                        for (SE_id, setpoint) in Setpoint_updated.items():
+                            if  SE_id ==  X.SE_id:
+                                X.PkW = setpoint
+                                X.QkVAR = 0
+                                PQ_setpoints.append(X)
 
             
         #-----------------------------
@@ -281,5 +283,6 @@ class voltwatt_control(typeA_control):
         # Caldera_control_info_dict must be a dictionary with Caldera_message_types as keys.
         # DSS_control_info_dict must be a dictionary with OpenDSS_message_types as keys.
         # If either value has nothing to return, return an empty dictionary.
+        sys.stdout.flush()
         return (Caldera_control_info_dict, DSS_control_info_dict)
 
