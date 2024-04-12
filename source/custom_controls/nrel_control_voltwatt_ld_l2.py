@@ -76,6 +76,30 @@ class voltwatt_control(typeA_control):
         charge_events = self.datasets_dict[input_datasets.SE_group_charge_event_data]
         self.charge_events = charge_events
 
+        #-------------------------------------
+        #      Get Supply Equipment Data
+        #-------------------------------------
+        SE_group_config = self.datasets_dict[input_datasets.SE_group_configuration]  
+        #SEid_to_SE_type = self.datasets_dict[input_datasets.SEid_to_SE_type]
+        
+        SE_group_NODE  = {}
+        # Example
+        for SE_group in SE_group_config:
+            #SE_group_id = SE_group.SE_group_id
+            #print('SE_group_id type = ', (SE_group_id))
+            
+            for SE in SE_group.SEs:
+                SE_group_id = int(SE_group.SE_group_id)
+                SE_node_id = SE.grid_node_id
+                #print('SE_group_id  = ', (SE_group_id))
+                #print('SE_node_id  = ', (grid_node_id))
+                SE_group_NODE.update({SE_group_id:SE_node_id})
+        
+        #print('SE_group_NODE = ', SE_group_NODE)
+        self.se_group_node = SE_group_NODE  
+         
+        #SE_group_NODE = {10: '856.2', 20: '826.2'} #Manually mapping SE_group_id with node_id for Sandbox case. 
+
        
     def log_data(self):
         pass
@@ -83,7 +107,7 @@ class voltwatt_control(typeA_control):
     
     def get_messages_to_request_state_info_from_Caldera(self, next_control_timestep_start_unix_time):
         return_dict = {}
-        return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = [10,20,30]
+        return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = [2,10,20,30]
         #return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0001q', 'voltwatt_ld_l2']
         
         # The return value (return_dict) must be a dictionary with Caldera_message_types as keys.
@@ -114,31 +138,6 @@ class voltwatt_control(typeA_control):
         
         #for (node_id, puV) in node_voltages.items():
             #print('node_id:{}  puV:{}'.format(node_id, puV))
-        
-                
-        #-------------------------------------
-        #      Get Supply Equipment Data
-        #-------------------------------------
-        SE_group_config = self.datasets_dict[input_datasets.SE_group_configuration]  
-        SEid_to_SE_type = self.datasets_dict[input_datasets.SEid_to_SE_type]
-        
-        SE_group_NODE  = {}
-        # Example
-        for SE_group in SE_group_config:
-            #SE_group_id = SE_group.SE_group_id
-            #print('SE_group_id type = ', (SE_group_id))
-            
-            for SE in SE_group.SEs:
-                SE_group_id = int(SE_group.SE_group_id)
-                SE_node_id = SE.grid_node_id
-                #print('SE_group_id  = ', (SE_group_id))
-                #print('SE_node_id  = ', (grid_node_id))
-                SE_group_NODE.update({SE_group_id:SE_node_id})
-        
-        #print('SE_group_NODE = ', SE_group_NODE)
-           
-         
-        #SE_group_NODE = {10: '856.2', 20: '826.2'} #Manually mapping SE_group_id with node_id for Sandbox case. 
          
 
         # Step 0: user-defined inputs
@@ -173,15 +172,15 @@ class voltwatt_control(typeA_control):
             i = i + 1
             if bool(active_CEs):
                 print('Concensus: Found active charge event')
-                len_active_CEs= 0
-                for CE in active_CEs:
-                    len_active_CEs = len_active_CEs + 1
-                    #print('group_id at line 240 = ', group_id)
+                len_active_CEs= len(active_CEs)
+                #for CE in active_CEs:
+                #    len_active_CEs = len_active_CEs + 1
+                #    #print('group_id at line 240 = ', group_id)
                 #print('length of active_CE = ', len_active_CEs)
 
                 SE_id_CE = np.zeros((len(CE_by_SE_groups), len_active_CEs))
                 charge_event_id = np.zeros((len(CE_by_SE_groups),len_active_CEs))
-                event_nodes = np.zeros((len(CE_by_SE_groups),len_active_CEs))
+                #event_nodes = np.zeros((len(CE_by_SE_groups),len_active_CEs))
                 now_unix_time = np.zeros((len(CE_by_SE_groups),len_active_CEs))
                 now_soc = np.zeros((len(CE_by_SE_groups),len_active_CEs))
                 now_charge_energy_ackWh = np.zeros((len(CE_by_SE_groups),len_active_CEs))
@@ -216,18 +215,19 @@ class voltwatt_control(typeA_control):
             else:
                 print('Concensus: No active charge event')
                 
+            PQ_setpoints = []
             if bool(active_CEs):
                 group_id_Parse = group_id
                 charge_event_id_Parse = charge_event_id[i,:]
                 SE_id_Parse = SE_id_CE[i,:]
     
                 arrival_times_Parse = arrival_time[i,:]
-                print('arrival times', arrival_time)
+                #print('arrival times', arrival_time)
                 departure_times_Parse = departure_time[i,:]
-                print('departure_times', departure_time)
+                #print('departure_times', departure_time)
                 charging_times_Parse = departure_times_Parse - arrival_times_Parse
                 energy_used_Parse = remaining_charge_energy_ackWh[i,:]
-                SE_group_NODE_Parse = SE_group_NODE[group_id]
+                SE_group_NODE_Parse = self.se_group_node[group_id]
                 for (node_id, puV) in node_voltages.items():
                     if  node_id == SE_group_NODE_Parse:
                         Node_pu = puV
@@ -241,7 +241,12 @@ class voltwatt_control(typeA_control):
                 #Step 3: Store results
                 for key, value in SetPoint_Dict.items():
                     Setpoint_updated[key] = value
-                    print(f'powerlimit: {key} set to {value}')
+                    print(f'powerlimit id: {key} set to {value}')
+                    setpoint = SE_setpoint()
+                    setpoint.SE_id = int(key)
+                    setpoint.PkW = value
+                    setpoint.QkVAR = 0
+                    PQ_setpoints.append(setpoint)
         
         #======================================================
         #      Open-DSS Feedback Control algorithm ends here
@@ -251,26 +256,9 @@ class voltwatt_control(typeA_control):
         #=================================
         #      Control PEV Charging
         #=================================        
-        next_control_timestep_start_hrs = (next_control_timestep_start_unix_time/3600)        
-        clock_mins = 60*(next_control_timestep_start_hrs - floor(next_control_timestep_start_hrs))
+        #next_control_timestep_start_hrs = (next_control_timestep_start_unix_time/3600)        
+        #clock_mins = 60*(next_control_timestep_start_hrs - floor(next_control_timestep_start_hrs))
         
-        
-        #-----------------------------
-        PQ_setpoints = []        
-        
-        if bool(Setpoint_updated):
-            for (group_id, active_CEs) in CE_by_SE_groups.items():
-                for CE in active_CEs:
-                    remaining_charge_energy_ackWh = CE.energy_of_complete_charge_ackWh - CE.now_charge_energy_ackWh
-                    if 0 < remaining_charge_energy_ackWh:
-                        X = SE_setpoint()
-                        X.SE_id = CE.SE_id
-                        for (SE_id, setpoint) in Setpoint_updated.items():
-                            if  SE_id ==  X.SE_id:
-                                X.PkW = setpoint
-                                X.QkVAR = 0
-                                PQ_setpoints.append(X)
-
             
         #-----------------------------
         
