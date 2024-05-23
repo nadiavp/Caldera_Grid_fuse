@@ -1,8 +1,12 @@
 import helics as h
 from Helics_Helper import send, receive, cleanup
+from global_aux import OpenDSS_message_types
+import btms_siting
 import os
 
-def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constraints, control_obj):
+def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constraints, control_obj, opendss_file_to_site_storage='opendss/ieee34.dss'):
+    # the dss_file_to_site_storage should be False if you already have behind the meter storage in the opendss file
+    # it should be the path to the opendss main file if you want to site storage
 
     print_communication = False
     #=====================================
@@ -103,6 +107,14 @@ def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constr
         cleanup(fed)   
         return
     
+    #======================================
+    #   Site behind the meter storage if
+    #   there is none and you have selected
+    #   to do so
+    #======================================
+    if opendss_file_to_site_storage:
+        DER_data = btms_siting.get_btms_siting(opendss_file_to_site_storage)
+
     #=====================================
     #         Start Simulation
     #=====================================    
@@ -164,12 +176,14 @@ def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constr
         if h.helicsEndpointHasMessage(OpenDSS_endpoint_local):
             msg_dict = receive(OpenDSS_endpoint_local)
             DSS_state_info_dict = msg_dict[OpenDSS_endpoint_remote] 
+            if not OpenDSS_message_types.get_all_DER in DSS_state_info_dict.keys() and opendss_file_to_site_storage:
+                DSS_state_info_dict[OpenDSS_message_types.get_all_DER] = DER_data
 
         #-------------------------------------
         #     Solve Optimization Problem
         #-------------------------------------
         
-        (Caldera_control_info_dict, DSS_control_info_dict) = control_obj.solve(federate_time, Caldera_state_info_dict, DSS_state_info_dict)
+        (Caldera_control_info_dict, DSS_control_info_dict, DER_data) = control_obj.solve(federate_time, Caldera_state_info_dict, DSS_state_info_dict)
         
         #-------------------------------------------
         #  Send Control Info to Caldera and OpenDSS

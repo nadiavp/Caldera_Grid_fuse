@@ -11,6 +11,8 @@ from btm_control import BTM_Control
 import time
 import datetime, calendar
 
+import sys
+
 '''
 Notice: This computer software was prepared by Alliance for Sustainable Energy, LLC, 
 hereinafter the Contractor, under Contract DE-AC36-08GO28308 with the Department of 
@@ -48,7 +50,7 @@ class btms_control(typeB_control):
         if "ext_btms_ld_l2" in self.datasets_dict[input_datasets.external_strategies]:
             print(f'running with btms_ld_l2 federate')
             return False
-        elif "ext0002" in self.datasets_dict[input_datasets.external_strategies]:
+        elif "ext0001q" in self.datasets_dict[input_datasets.external_strategies]:
             return False
 
         return True
@@ -62,7 +64,7 @@ class btms_control(typeB_control):
         X.control_timestep_min = self.control_timestep_min
         X.request_state_lead_time_min = self.request_state_lead_time_min
         X.send_control_info_lead_time_min = self.send_control_info_lead_time_min
-        self._calculate_timing_parameters(X, self.__class__.__name__)
+        #self._calculate_timing_parameters(X, self.__class__.__name__)
     
         deptTime_lookup = {}
         #-------------------------------------
@@ -102,8 +104,8 @@ class btms_control(typeB_control):
     
     def get_messages_to_request_state_info_from_Caldera(self, next_control_timestep_start_unix_time):
         return_dict = {}
-        #return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = [10] #Grid teams to update this
-        return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0002', 'ext_btsm_ld_l2']
+        return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = [2] #Grid teams to update this
+        #return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0002', 'ext_btsm_ld_l2']
 
         # The return value (return_dict) must be a dictionary with Caldera_message_types as keys.
         # If there is nothing to return, return an empty dictionary.
@@ -121,7 +123,7 @@ class btms_control(typeB_control):
     def get_messages_to_request_state_info_from_OpenDSS(self, next_control_timestep_start_unix_time):
         return_dict = {}
         return_dict[OpenDSS_message_types.get_all_DER] = None
-        return_dict[OpenDSS_message_types.get_all_node_voltages] = None      
+        #return_dict[OpenDSS_message_types.get_all_node_voltages] = None      
         
         # The return value (return_dict) must be a dictionary with OpenDSS_message_types as keys.
         # If there is nothing to return, return an empty dictionary.
@@ -133,15 +135,6 @@ class btms_control(typeB_control):
         # Caldera_control_info_dict is a dictionary with Caldera_message_types as keys.
         # DSS_state_info_dict is a dictionary with OpenDSS_message_types as keys.                 
         
-        #=================================
-        #      Define BTM controller
-        #=================================
-        btm_control = BTM_Control(time_step_mins=5, ess_size=40, max_power_ess=40, min_power_ess=-40, 
-                                  max_power_l2=6.6, min_power_l2=1.5, time_horizon=5)
-        
-        Emin = list(np.zeros(int(btm_control.time_horizon*60/btm_control.time_step_mins)))
-        Emax = list(np.zeros(int(btm_control.time_horizon*60/btm_control.time_step_mins)))
-        
         
         #======================================================
         #      Get data from OpenDSS
@@ -152,13 +145,23 @@ class btms_control(typeB_control):
             Net_load = DER_data["Net_load"]
             Storage_SOC = DER_data["storage_SOC"]
             Storage_Capacity = DER_data["storage_cap"]
+            print(f'DER_data stor soc: {DER_data["storage_SOC"]}')
         else:
             print(f'no der info at timestep {next_control_timestep_start_unix_time}')
-            print(f'DSS_state_info keys: {DSS_state_info_dict.keys()}')
             DSS_control_info_dict = {}
             return (Caldera_control_info_dict, DSS_control_info_dict)
 
+        #=================================
+        #      Define BTM controller
+        #=================================
+        btm_control = BTM_Control(time_step_mins=5, ess_size=Storage_Capacity, max_power_ess=40, min_power_ess=-40, 
+                                  max_power_l2=6.6, min_power_l2=1.5, time_horizon=1)
+        # time_horizon is in hours
+        #btm_control = BTM_Control(time_step_mins=5, ess_size=40, max_power_ess=40, min_power_ess=-40, 
+        #                          max_power_l2=6.6, min_power_l2=1.5, time_horizon=5)
         
+        Emin = list(np.zeros(int(btm_control.time_horizon*60/btm_control.time_step_mins)))
+        Emax = list(np.zeros(int(btm_control.time_horizon*60/btm_control.time_step_mins)))
         '''
         for (node_id, puV) in node_voltages.items():
             print('node_id:{}  puV:{}'.format(node_id, puV))
@@ -269,8 +272,10 @@ class btms_control(typeB_control):
                 #=====================================================
                 #p = non_pev_loads_forecast - pv_powers_forecast
                 p = Net_load[i]
-                x0 = np.ones(len(p))
+                x0 = np.zeros(len(p)) #np.ones(len(p))
                 results = btm_control.solve_optimization(x0, p, Emin, Emax) 
+
+                print(f'opt results: {results.x}')
                 
                 #=====================================================
                 # Allocate setpoint
@@ -290,6 +295,11 @@ class btms_control(typeB_control):
                 if group_id_Parse not in storage_powers_setpoints.keys():
                     storage_powers_setpoints[group_id_Parse] = []
                 storage_powers_setpoints[group_id_Parse].append(Setpoint_storage)
+
+                #Step 3.5: if the storage isn't passed to OpenDSS save it in the dataframe
+                i_der = 0
+                for remain_energy in remaining_energy_ess:
+                    DER_data['storage_SOC'][i] = remain_energy/DER_data['storage_cap']
 
 
       
@@ -320,8 +330,10 @@ class btms_control(typeB_control):
         #-----------------------------
         
         Caldera_control_info_dict = {}
+        print(f'pq pev setpoints {PQ_setpoints}')
         if len(PQ_setpoints) > 0:
             Caldera_control_info_dict[Caldera_message_types.set_pev_charging_PQ] = PQ_setpoints
+            print(f'first in list {PQ_setpoints[0].PkW}')
         
  
         DSS_control_info_dict = {}
@@ -331,7 +343,8 @@ class btms_control(typeB_control):
         # Caldera_control_info_dict must be a dictionary with Caldera_message_types as keys.
         # DSS_control_info_dict must be a dictionary with OpenDSS_message_types as keys.
         # If either value has nothing to return, return an empty dictionary.
-        return (Caldera_control_info_dict, DSS_control_info_dict)
+        sys.stdout.flush()
+        return (Caldera_control_info_dict, DSS_control_info_dict, DER_data)
         
                
        

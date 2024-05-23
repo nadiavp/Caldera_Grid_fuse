@@ -46,7 +46,7 @@ def assign_battery_sizes(bus_df):
     # large commercial
     lgc_bes = {'storage_cap_kwh':1100, 'storage_power_kw':350}
     # dataframe of storage by bus
-    bess_df = {'bus_name':[], 'storage_cap_kwh':[], 'storage_power_kw':[]}
+    bess_df = {'bus_name':[], 'storage_cap_kwh':[], 'storage_power_kw':[], "storage_SOC":[], 'bes_eff':[]}
     for _, bus in bus_df.iterrows():
         bess_df['bus_name'].append(bus)
         if bus['pv_cap'] > 25 or bus['load_peak'] > 1000: # in kW
@@ -63,8 +63,19 @@ def assign_battery_sizes(bus_df):
             pwr = smr_bes['storage_power_kw']
         bess_df['storage_cap_kwh'].append(cap)
         bess_df['storage_power_kw'].append(pwr)
+        bess_df["storage_SOC"].append(.5)
+        bess_df['bes_eff'].append(0.98)
     # convert to dataframe
     bess_df = pd.DataFrame.from_dict(bess_df)
+    return bess_df
+
+def get_btms_siting(opendss_file):
+    print(f'stiting storage on dss model {opendss_file}')
+    dss_model = dss.run_command(f'Redirect {opendss_file}')
+    dss.Solution.Solve()
+    dss_loads = dss.Loads.AllNames()
+    bus_df = get_load_points(dss_loads)
+    bess_df = assign_battery_sizes(bus_df)
     return bess_df
 
 if __name__ == "__main__":
