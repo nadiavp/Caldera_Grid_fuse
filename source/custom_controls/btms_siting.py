@@ -46,7 +46,7 @@ def assign_battery_sizes(bus_df):
     # large commercial
     lgc_bes = {'storage_cap_kwh':1100, 'storage_power_kw':350}
     # dataframe of storage by bus
-    bess_df = {'bus_name':[], 'storage_cap_kwh':[], 'storage_power_kw':[], "storage_SOC":[], 'bes_eff':[]}
+    bess_df = {'bus_name':[], 'storage_cap_kwh':[], 'storage_power_kw':[], "storage_SOC":[], 'bes_eff':[], 'Net_load':[]}
     for _, bus in bus_df.iterrows():
         bess_df['bus_name'].append(bus)
         if bus['pv_cap'] > 25 or bus['load_peak'] > 1000: # in kW
@@ -65,6 +65,7 @@ def assign_battery_sizes(bus_df):
         bess_df['storage_power_kw'].append(pwr)
         bess_df["storage_SOC"].append(.5)
         bess_df['bes_eff'].append(0.98)
+        bess_df['Net_load'].append(0)
     # convert to dataframe
     bess_df = pd.DataFrame.from_dict(bess_df)
     return bess_df

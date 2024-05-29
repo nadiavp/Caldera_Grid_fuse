@@ -7,6 +7,7 @@ from global_aux import Caldera_message_types, OpenDSS_message_types, input_datas
 from control_templates import typeB_control
 
 import numpy as np
+import pandas as pd
 from btm_control import BTM_Control
 import time
 import datetime, calendar
@@ -28,12 +29,15 @@ software.
 
 class btms_control(typeB_control):
     
-    def __init__(self, base_dir, simulation_time_constraints):        
+    def __init__(self, base_dir, simulation_time_constraints, input_se_csv='inputs/SE_.csv'):        
         super().__init__(base_dir, simulation_time_constraints)
         
         self.control_timestep_min = 15
         self.request_state_lead_time_min = 10.1
         self.send_control_info_lead_time_min = (simulation_time_constraints.grid_timestep_sec + 0.5)/60
+        se_df = pd.read_csv(input_se_csv)
+        se_df =se_df[['SE_id','node_id', 'SE_group']]
+        self.se_group_by_bus = se_df.set_index('SE_id').to_dict()
         
     
     def get_input_dataset_enum_list(self):
@@ -94,7 +98,8 @@ class btms_control(typeB_control):
         #-------------------------------------
         #      Get Supply Equipment Data
         #-------------------------------------
-        SE_group_config = self.datasets_dict[input_datasets.SE_group_configuration]        
+        SE_group_config = self.datasets_dict[input_datasets.SE_group_configuration]  
+        self.se_group_config =SE_group_config      
         SEid_to_SE_type = self.datasets_dict[input_datasets.SEid_to_SE_type]
   
        
@@ -142,10 +147,11 @@ class btms_control(typeB_control):
 
         if OpenDSS_message_types.get_all_DER in DSS_state_info_dict.keys():
             DER_data = DSS_state_info_dict[OpenDSS_message_types.get_all_DER]
-            Net_load = DER_data["Net_load"]
             Storage_SOC = DER_data["storage_SOC"]
-            Storage_Capacity = DER_data["storage_cap"]
-            print(f'DER_data stor soc: {DER_data["storage_SOC"]}')
+            Storage_Capacity = DER_data["storage_cap_kwh"]
+            Net_load = DER_data["Net_load"]
+            storage_buses = DER_data["bus_name"]
+            #print(f'DER_data stor soc: {DER_data["storage_SOC"]}')
         else:
             print(f'no der info at timestep {next_control_timestep_start_unix_time}')
             DSS_control_info_dict = {}
@@ -176,19 +182,40 @@ class btms_control(typeB_control):
         i= -1     
         for (group_id, active_CEs) in CE_by_SE_groups.items():
             i = i + 1   #i for interating trhough group node
+            i_storage = -1
+            storage_at_bus = False
+            
             if bool(active_CEs):
                 print('BTM: Found active charge event')
                 len_active_CEs= 0
+                # find storage at buses with actie charge events
+                
+                storages_involved = []
+                #ces_with_storage = []
+                active_buses = []
+                i_ce = 0
                 for CE in active_CEs:
                     len_active_CEs = len_active_CEs + 1
+                    print(f'btms CE.SE_id: {CE.SE_id}')
+                    ce_bus = self.se_group_by_bus['node_id'][CE.SE_id]
+                    if ce_bus in storage_buses:
+                        i_storage = storage_buses.index(ce_bus)
+                        storages_involved.append(i_storage)
+                        #ces_with_storage.append(i_ce)
+                        active_buses.append(ce_bus)
+                        storage_at_bus = True
+                    i_ce = i_ce+1
+                # remove duplicates
+                storages_involved = list(set(storages_involved))
+                active_buses = list(set(active_buses))
                     #print('group_id at line 240 = ', group_id)
                 #print('length of active_CE = ', len_active_CEs)
 
                 SE_id_CE = np.zeros((len(CE_by_SE_groups), len_active_CEs),dtype=np.int64)
-                charge_event_id = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.int64)
-                event_nodes = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.int64)
+                #charge_event_id = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.int64)
+                #event_nodes = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.int64)
                 now_unix_time = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.float64)
-                now_soc = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.float64)
+                now_soc = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.float64) # this is vehicle SOC
                 now_charge_energy_ackWh = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.float64)
                 energy_of_complete_charge_ackWh = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.float64)
                 remaining_charge_energy_ackWh = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.float64)
@@ -201,10 +228,10 @@ class btms_control(typeB_control):
                     
                     SE_id_CE[i,j] = CE.SE_id
                     #print(SE_id_CE)
-                    charge_event_id[i,j] = CE.charge_event_id
+                    #charge_event_id[i,j] = CE.charge_event_id
                     #print(charge_event_id)
                     now_unix_time[i,j] = CE.now_unix_time
-                    now_soc[i,j] = CE.now_soc
+                    #now_soc[i,j] = CE.now_soc
                     now_charge_energy_ackWh[i,j] = CE.now_charge_energy_ackWh
                     energy_of_complete_charge_ackWh[i,j] = CE.energy_of_complete_charge_ackWh
                     remaining_charge_energy_ackWh[i,j] = energy_of_complete_charge_ackWh[i,j] - now_charge_energy_ackWh[i,j]
@@ -222,7 +249,7 @@ class btms_control(typeB_control):
         
             if bool(active_CEs):
                 group_id_Parse = group_id
-                charge_event_id_Parse = charge_event_id[i,:]
+                #charge_event_id_Parse = charge_event_id[i,:]
                 SE_id_Parse = SE_id_CE[i,:]
  
                 now_unix_time_Parse = now_unix_time[i,:]
@@ -230,7 +257,7 @@ class btms_control(typeB_control):
                 #print('arrival times', self.arrival_times)
                 departure_times_Parse = departure_time[i,:]
                 #print('departure_times', self.departure_times)
-                charging_times_Parse = departure_times_Parse - arrival_times_Parse
+                #charging_times_Parse = departure_times_Parse - arrival_times_Parse
                 energy_used_Parse = remaining_charge_energy_ackWh[i,:]
                 #SE_group_NODE_Parse = SE_group_NODE[group_id]
                 
@@ -238,7 +265,7 @@ class btms_control(typeB_control):
                 Storage_Capacity_Parse = Storage_Capacity
         
         
-                SetPoint_Dict = {} #for EV power setpoint
+                #SetPoint_Dict = {} #for EV power setpoint
                 Setpoint_storage = {} #for storage power setpoint
                 #Step 1 : BTM control
                 
@@ -259,19 +286,23 @@ class btms_control(typeB_control):
                 if (ess_target_time - now_unix_time[i,0])/60/60 < btm_control.time_horizon:
                     ess_target_time = (datetime.datetime(tm.tm_year, tm.tm_mon, tm.tm_mday, 0, 0, 0, 0) \
                                       + datetime.timedelta(hours=48)).timestamp()
-                    
-                remaining_energy_ess = (1 - Storage_SOC_Parse[i])*Storage_Capacity_Parse[i]
-                available_energy_ess = (Storage_SOC_Parse[i] - btm_control.ess_soc_min)*Storage_Capacity_Parse[i]
-                Emin_, Emax_ = btm_control.energy_constraints_ess(now_unix_time[i,0], ess_target_time,  
+
+                available_energy_ess = 0
+                i_storage_soc = 0
+                for i_storage in storages_involved:   
+                    remaining_energy_ess = (1 - Storage_SOC_Parse[i_storage])*Storage_Capacity_Parse[i_storage]
+                    available_energy_ess = (Storage_SOC_Parse[i_storage] - btm_control.ess_soc_min)*Storage_Capacity_Parse[i_storage]
+                    Emin_, Emax_ = btm_control.energy_constraints_ess(now_unix_time[i,0], ess_target_time,  
                                                                     remaining_energy_ess, available_energy_ess)
-                Emin = [sum(x) for x in zip(Emin, Emin_)]         
-                Emax = [sum(x) for x in zip(Emax, Emax_)]
+                    i_storage_soc = Storage_SOC_Parse[i_storage]
+                    Emin = [sum(x) for x in zip(Emin, Emin_)] 
+                    Emax = [sum(x) for x in zip(Emax, Emax_)]
                 
                 #=====================================================
                 # Solve optimization
                 #=====================================================
                 #p = non_pev_loads_forecast - pv_powers_forecast
-                p = Net_load[i]
+                p = [Net_load[i_stor] for i_stor in storages_involved]
                 x0 = np.zeros(len(p)) #np.ones(len(p))
                 results = btm_control.solve_optimization(x0, p, Emin, Emax) 
 
@@ -280,7 +311,7 @@ class btms_control(typeB_control):
                 #=====================================================
                 # Allocate setpoint
                 #=====================================================
-                Setpoint_storage, SetPoint_list = btm_control.allocate_setpoint(results.x[0], Storage_SOC_Parse[i], available_energy_ess, departure_times_Parse, energy_used_Parse)
+                Setpoint_storage, SetPoint_list = btm_control.allocate_setpoint(results.x[0], i_storage_soc, available_energy_ess, departure_times_Parse, energy_used_Parse)
                 
                 #Update SetPoint_Dict within the control with key being SE_id and value being Power
                 #Update Setpoint_storage within the control with key being node_ID and value being Power
@@ -291,15 +322,18 @@ class btms_control(typeB_control):
                     Setpoint_updated[SEs] = SetPoint_list[j]
                     j = j + 1
         
-                #Step 3: Store results to pass to OpenDSS
-                if group_id_Parse not in storage_powers_setpoints.keys():
-                    storage_powers_setpoints[group_id_Parse] = []
-                storage_powers_setpoints[group_id_Parse].append(Setpoint_storage)
+                #Step 3: Store results to pass to OpenDSS and update dataframe tracking soc
+                i_setp = 0
+                for i_storage in storages_involved:
+                    ce_bus = active_buses[i_setp]
+                    if not ce_bus in storage_powers_setpoints.keys():
+                        storage_powers_setpoints[ce_bus] = []
+                    storage_powers_setpoints[ce_bus].append(Setpoint_storage[i_setp])
 
-                #Step 3.5: if the storage isn't passed to OpenDSS save it in the dataframe
-                i_der = 0
-                for remain_energy in remaining_energy_ess:
-                    DER_data['storage_SOC'][i] = remain_energy/DER_data['storage_cap']
+                    #Step 3.5: if the storage isn't passed to OpenDSS save it in the dataframe
+                    ess_energy_used = Setpoint_storage[i_setp]*self.control_timestep_min/60
+                    DER_data['storage_SOC'][i_storage] = DER_data['storage_SOC'][i_storage] - ess_energy_used/DER_data['storage_cap'][i_storage]
+                    i_setp = i_setp + 1
 
 
       

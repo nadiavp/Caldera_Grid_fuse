@@ -115,6 +115,7 @@ def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constr
     if opendss_file_to_site_storage:
         DER_data = btms_siting.get_btms_siting(opendss_file_to_site_storage)
 
+
     #=====================================
     #         Start Simulation
     #=====================================    
@@ -176,7 +177,8 @@ def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constr
         if h.helicsEndpointHasMessage(OpenDSS_endpoint_local):
             msg_dict = receive(OpenDSS_endpoint_local)
             DSS_state_info_dict = msg_dict[OpenDSS_endpoint_remote] 
-            if not OpenDSS_message_types.get_all_DER in DSS_state_info_dict.keys() and opendss_file_to_site_storage:
+            #not OpenDSS_message_types.get_all_DER in DSS_state_info_dict.keys() and 
+            if opendss_file_to_site_storage:
                 DSS_state_info_dict[OpenDSS_message_types.get_all_DER] = DER_data
 
         #-------------------------------------
