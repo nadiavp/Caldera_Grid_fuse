@@ -1,6 +1,7 @@
 import helics as h
 from OpenDSS_aux import open_dss
 from Helics_Helper import send, receive, cleanup
+import json
 import os
 
 def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints, use_opendss):
@@ -15,6 +16,8 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
     
     sub_data_loaded = h.helicsFederateGetInputByTarget(fed, 'Load_Input_Files/data_loaded')
     pub_dss_simulation_loaded = h.helicsFederateGetPublication(fed, 'dss_simulation_loaded')
+    pub_dss_der_status = h.helicsFederateGetPublication(fed, 'typeB_control_der_data')
+    pub_dss_basenetloads = h.helicsFederateGetPublication(fed, 'typeB_control_basenetloads')
 
     input_datasets_endpoint_local = h.helicsFederateGetEndpoint(fed, "input_datasets_endpoint")
     input_datasets_endpoint_remote = h.helicsEndpointGetDefaultDestination(input_datasets_endpoint_local)
@@ -89,6 +92,11 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
     dss_loaded_successfully = dss_obj.initialize()
     
     h.helicsPublicationPublishBoolean(pub_dss_simulation_loaded, dss_loaded_successfully)
+    der_data = dss_obj.get_der_soc_for_controlb()
+    netload = dss_obj.get_node_load_profile_for_controlb(t_now=federate_time, t_horizon=end_simulation_unix_time, t_step=grid_timestep_sec)
+    #print(f'der_data from opendss federate: {der_data}')
+    h.helicsPublicationPublishString(pub_dss_der_status, json.dumps(der_data))
+    h.helicsPublicationPublishString(pub_dss_basenetloads, json.dumps(netload))
     
     if not dss_loaded_successfully:
         cleanup(fed)   
@@ -109,13 +117,15 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
         #=====================================
         #         	Sub Step 1 
         #=====================================
+
         #-------------------------------------
         #     Process TypeB Control-Info
         #-------------------------------------
         msg_obj = receive(typeB_control_endpoint)     
         
-        for source, msg_dict in msg_obj.items():
-            dss_obj.process_control_messages(federate_time, msg_dict)
+        #for source, msg_dict in msg_obj.items():
+        #    dss_obj.process_control_messages(federate_time, msg_dict)
+        dss_obj.set_der_charge_controlb(msg_obj)
 
         #-------------------------------------
         #   Read pev P&Q from Caldera_ICM         
@@ -135,6 +145,19 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
         node_puV = dss_obj.get_pu_node_voltages_for_caldera()
         send(node_puV, ICM_endpoint_local, ICM_endpoint_remote)
         
+        #-------------------------------------
+        # Send updated DER info to type B 
+        #-------------------------------------
+        der_data = dss_obj.get_der_soc_for_controlb()
+        #print(f'der_data from opendss federate: {der_data}')
+        h.helicsPublicationPublishString(pub_dss_der_status, json.dumps(der_data))
+    
+        #-------------------------------------
+        # Send updated net baseloads info to type B 
+        #-------------------------------------
+        netload = dss_obj.get_node_load_profile_for_controlb(t_now=federate_time, t_horizon=end_simulation_unix_time, t_step=grid_timestep_sec)
+        h.helicsPublicationPublishString(pub_dss_basenetloads, json.dumps(netload))
+
         #=====================================
         #         	Sub Step 2
         #=====================================		
@@ -172,7 +195,7 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
             msg_dict = dss_obj.process_control_messages(federate_time, msg_dict)
             if len(msg_dict) != 0:
                 send(msg_dict, typeA_control_endpoint, source)
-                
+
         #=====================================
         #      Advance to Next Time Step
         #=====================================		

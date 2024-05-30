@@ -128,6 +128,7 @@ class btms_control(typeB_control):
     def get_messages_to_request_state_info_from_OpenDSS(self, next_control_timestep_start_unix_time):
         return_dict = {}
         return_dict[OpenDSS_message_types.get_all_DER] = None
+        return_dict[OpenDSS_message_types.get_basenetloads] = None
         #return_dict[OpenDSS_message_types.get_all_node_voltages] = None      
         
         # The return value (return_dict) must be a dictionary with OpenDSS_message_types as keys.
@@ -137,6 +138,9 @@ class btms_control(typeB_control):
    
  
     def solve(self, next_control_timestep_start_unix_time, Caldera_control_info_dict, DSS_state_info_dict):
+        # this solves a timeseries optimization of energy storage dispatch with the dwell period as the horizon
+        # energy storage is used to attempt to flatten total net load over the horizon period
+        # 
         # Caldera_control_info_dict is a dictionary with Caldera_message_types as keys.
         # DSS_state_info_dict is a dictionary with OpenDSS_message_types as keys.                 
         
@@ -149,13 +153,15 @@ class btms_control(typeB_control):
             DER_data = DSS_state_info_dict[OpenDSS_message_types.get_all_DER]
             Storage_SOC = DER_data["storage_SOC"]
             Storage_Capacity = DER_data["storage_cap_kwh"]
-            Net_load = DER_data["Net_load"]
+            #Net_load = DER_data["Net_load"]
             storage_buses = DER_data["bus_name"]
             #print(f'DER_data stor soc: {DER_data["storage_SOC"]}')
+            Net_load = DSS_state_info_dict[OpenDSS_message_types.get_basenetloads]
         else:
             print(f'no der info at timestep {next_control_timestep_start_unix_time}')
             DSS_control_info_dict = {}
-            return (Caldera_control_info_dict, DSS_control_info_dict)
+            DER_data = {}
+            return (Caldera_control_info_dict, DSS_control_info_dict, DER_data)
 
         #=================================
         #      Define BTM controller
@@ -191,6 +197,7 @@ class btms_control(typeB_control):
                 # find storage at buses with actie charge events
                 
                 storages_involved = []
+                bus_load_without_ev_ess = []
                 #ces_with_storage = []
                 active_buses = []
                 i_ce = 0
@@ -201,12 +208,21 @@ class btms_control(typeB_control):
                     if ce_bus in storage_buses:
                         i_storage = storage_buses.index(ce_bus)
                         storages_involved.append(i_storage)
+                        bus_load_without_ev_ess.append(Net_load[ce_bus])
                         #ces_with_storage.append(i_ce)
                         active_buses.append(ce_bus)
                         storage_at_bus = True
+                    else:
+                        bus_load_without_ev_ess.append(0)
                     i_ce = i_ce+1
                 # remove duplicates
                 storages_involved = list(set(storages_involved))
+                ## if there are no stationary storages involved, just continue without optimization
+                #if len(storages_involved)==0:
+                #    print(f'No energy storage at charging event sites at timestep {next_control_timestep_start_unix_time}')
+                #    DSS_control_info_dict = {}
+                #    return (Caldera_control_info_dict, DSS_control_info_dict)
+                
                 active_buses = list(set(active_buses))
                     #print('group_id at line 240 = ', group_id)
                 #print('length of active_CE = ', len_active_CEs)
@@ -301,8 +317,10 @@ class btms_control(typeB_control):
                 #=====================================================
                 # Solve optimization
                 #=====================================================
+                print(f'ther are {len(active_CEs)} and {len(storages_involved)} \n Emin is {Emin} \n Emax is {Emax}')
                 #p = non_pev_loads_forecast - pv_powers_forecast
-                p = [Net_load[i_stor] for i_stor in storages_involved]
+                p = bus_load_without_ev_ess
+                print(f'power without ev and ess is {p}')
                 x0 = np.zeros(len(p)) #np.ones(len(p))
                 results = btm_control.solve_optimization(x0, p, Emin, Emax) 
 

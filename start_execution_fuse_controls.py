@@ -166,8 +166,10 @@ if __name__ == '__main__':
     # The flag to use or not use OpenDSS
     if args["use_opendss"] != None and ( (isinstance(args["use_opendss"], str) and args["use_opendss"].lower() == "true") or args["use_opendss"] == True ):
         use_opendss = True
+        print('use_opendss set to true')
     else:
-        use_opendss = False
+        use_opendss = True #False
+        print('WARNING, not using opendss, this version returns 1.0p.u. voltage always')
         
     # Other options.
     epcnmfecs = args["ensure_pev_charge_needs_met_for_ext_control_strategy"]
@@ -176,7 +178,9 @@ if __name__ == '__main__':
     else:
         ensure_pev_charge_needs_met_for_ext_control_strategy = False
 
+    ensure_pev_charge_needs_met_for_ext_control_strategy = True
     #---------------------
+    print(f'ensure_pev_charge_needs_met_for_ext_control_strategy: {ensure_pev_charge_needs_met_for_ext_control_strategy}')
     
     start_simulation_unix_time = int(start_simulation_unix_time)
     end_simulation_unix_time = int(end_simulation_unix_time)
@@ -267,16 +271,16 @@ if __name__ == '__main__':
     #-------------------------------
     json_config_file_name = 'control_strategy_A.json'
     CS_A_obj = voltwatt_control(io_dir, simulation_time_constraints)    
-    p = Process(target=typeA_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_A_obj,), name="control_strategy_A_federate")
-    processes.append(p)
+    #p = Process(target=typeA_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_A_obj,), name="control_strategy_A_federate")
+    #processes.append(p)
     
     #-------------------------------
     #   Control Strategy_B Federate
     #-------------------------------
     json_config_file_name = 'control_strategy_B.json'
-    CS_B_obj = btms_control(io_dir, simulation_time_constraints)    
+    CS_B_obj = btms_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_Sep_Shellbank_22700.csv')    
     p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_B_obj,), name="control_strategy_B_federate")
-    #processes.append(p)
+    processes.append(p)
     
     #-------------------------------
     #   Control Strategy_C Federate
