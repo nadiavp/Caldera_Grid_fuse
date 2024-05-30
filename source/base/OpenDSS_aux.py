@@ -168,7 +168,6 @@ class logger_helper:
         for (msg_enum, parameters) in message_dict.items():
             if msg_enum == OpenDSS_message_types.get_all_node_voltages:
                 return_dict[msg_enum] = self.get_pu_node_voltages_for_caldera()
-                
             else:
                 raise ValueError('Invalid message in caldera_ICM_aux::process_message.')
         
@@ -307,6 +306,8 @@ class open_dss_external_control:
                 return_dict[msg_enum] = self.__get_all_node_voltages()
             elif msg_enum == OpenDSS_message_types.get_all_DER:
                 return_dict[msg_enum] = self.get_der_soc_for_controlb()
+            elif msg_enum == OpenDSS_message_types.get_basenetloads:
+                return_dict[msg_enum] = self.get_node_load_profile_for_controlb(t_now=simulation_unix_time/3600,t_horizon=simulation_unix_time/3600+12,t_step=0.25)
             else:
                 raise ValueError('Invalid message in caldera_ICM_aux::process_message.')
         

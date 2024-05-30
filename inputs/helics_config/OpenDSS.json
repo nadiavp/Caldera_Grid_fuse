@@ -40,6 +40,16 @@
           "key": "dss_simulation_loaded", 
           "type": "bool",
           "global": false
-        }
+        },
+		{
+			"key": "typeB_control_der_data",
+			"type": "str",
+			"global": false
+		},
+		{
+			"key": "typeB_control_basenetloads",
+			"type": "str",
+			"global": false
+		}
     ]
 }

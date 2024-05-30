@@ -93,7 +93,7 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
     
     h.helicsPublicationPublishBoolean(pub_dss_simulation_loaded, dss_loaded_successfully)
     der_data = dss_obj.get_der_soc_for_controlb()
-    netload = dss_obj.get_node_load_profile_for_controlb(t_now=federate_time, t_horizon=end_simulation_unix_time, t_step=grid_timestep_sec)
+    netload = dss_obj.get_node_load_profile_for_controlb(t_now=federate_time/3600, t_horizon=end_simulation_unix_time/3600, t_step=grid_timestep_sec/3600)
     #print(f'der_data from opendss federate: {der_data}')
     h.helicsPublicationPublishString(pub_dss_der_status, json.dumps(der_data))
     h.helicsPublicationPublishString(pub_dss_basenetloads, json.dumps(netload))

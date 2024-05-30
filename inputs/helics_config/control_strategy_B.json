@@ -33,6 +33,10 @@
         {
           "key": "OpenDSS/dss_simulation_loaded", 
           "required": true
-        }
+        },
+		{
+			"key": "OpenDSS/typeB_control_der_data",
+			"required": true
+		}
     ]
 }

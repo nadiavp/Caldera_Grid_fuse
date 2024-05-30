@@ -217,11 +217,6 @@ class btms_control(typeB_control):
                     i_ce = i_ce+1
                 # remove duplicates
                 storages_involved = list(set(storages_involved))
-                ## if there are no stationary storages involved, just continue without optimization
-                #if len(storages_involved)==0:
-                #    print(f'No energy storage at charging event sites at timestep {next_control_timestep_start_unix_time}')
-                #    DSS_control_info_dict = {}
-                #    return (Caldera_control_info_dict, DSS_control_info_dict)
                 
                 active_buses = list(set(active_buses))
                     #print('group_id at line 240 = ', group_id)
