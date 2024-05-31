@@ -47,8 +47,8 @@ class open_dss:
     def get_pu_node_voltages_for_caldera(self):
         return self.helper.get_pu_node_voltages_for_caldera()
 
-    def get_node_load_profile_for_controlb(self, t_now, t_horizon, t_step):
-        return self.helper.get_node_load_profile_for_controlb(t_now, t_horizon, t_step)
+    def get_node_load_profile_for_controlb(self, t_now, t_horizon, t_step, der_busnames=[]):
+        return self.helper.get_node_load_profile_for_controlb(t_now, t_horizon, t_step, der_busnames)
 
     #def get_netload_node_for_controlb(self):
     #    return self.helper.get_netload_node_for_controlb()
@@ -124,8 +124,8 @@ class open_dss_helper:
     def get_der_soc_for_controlb(self):
         return self.dss_external_control.get_der_soc_for_controlb()
 
-    def get_node_load_profile_for_controlb(self, t_now, t_horizon, t_step):
-        return self.dss_external_control.get_node_load_profile_for_controlb(t_now, t_horizon, t_step)
+    def get_node_load_profile_for_controlb(self, t_now, t_horizon, t_step, der_busnames):
+        return self.dss_external_control.get_node_load_profile_for_controlb(t_now, t_horizon, t_step, der_busnames)
 
     #def get_netload_node_for_controlb(self):
     #    return self.dss_external_control.get_netload_node_for_controlb()
@@ -230,35 +230,60 @@ class open_dss_external_control:
             dss.Storages.Name(storage)
             dss.Storages.kW(controlb_setpoint[storage])
 
-    def get_node_load_profile_for_controlb(self, t_now, t_horizon, t_step):
+    def get_node_load_profile_for_controlb(self, t_now, t_horizon, t_step, der_busnames):
         # this gets the daily load profile only at nodes with storage
         # it returns the sum of only the fixed loads and fixed pv
         # the storage and evse are not added here
         # this does not include reactive loads
-        # t_now is the time according to the co-simulation
-        # t_horizon is the horizon of the optimization
-        # t_step is the timestep of the co-simulation (and therefore also optimization)
+        # t_now is the time according to the co-simulation in minutes
+        # t_horizon is the horizon of the optimization in minutes
+        # t_step is the timestep of the co-simulation (and therefore also optimization) in minutes
+        # der_bunames is the list of bus names for any storage that was added but not 
+        # put in the opendss model. This can be taken from the der_data['bus_names'] list
+        # used by the nrel_control_btms_ld_l2 controller
+        n_steps = int(np.ceil((t_horizon-t_now)/t_step))
+        #t_now = int(np.floor(t_now))
+        t_horizon = int(np.floor(t_horizon))
+        #t_step = int(round(t_step))
+        time_steps_desired = [ts*t_step + t_now for ts in range(n_steps)]
+
+        print(f'getting node load profiles for controlb:')
+        print(f'storages: {dss.Storages.AllNames()} and {der_busnames} \n ')
         netload = {}
+        # first add the storage that is in the dss model
         for storage in dss.Storages.AllNames():
             # set active element to this storage
             dss.Storages.Name(storage)
             # get bus name
             bus_name = dss.CktElement.BusNames()[0]
-            netload[bus_name] = np.zeros(len(range(t_now, t_horizon, t_step)))
+            netload[bus_name] = np.zeros(n_steps)
+        # then add the storage that's not in the model, but was added by the siting script
+        for busname in der_busnames:
+            netload[busname['bus_name']] = np.zeros(n_steps)
+        # now get the load profiles for those buses
         i_load = dss.Loads.First()
         while i_load>0:
             # determine if there are loads attached to that
             loadbusname = dss.CktElement.BusNames()[0]
             if loadbusname in netload.keys():
+                # if there is a loadshape then use it, check for daily or yearly profile
+                # then if no loadshape, just use the base kva for the full profile
                 loadshape_name = dss.Loads.Daily()
+                if len(loadshape_name)<1:
+                    loadshape_name = dss.Loads.Yearly()
                 base_kva_0 = dss.Loads.kVABase()
-                dss.LoadShape.Name(loadshape_name)
-                load_profile = base_kva_0*dss.LoadShape.PMult()
-                # sample only the ones for this time
-                loadshape_tstep = dss.LoadShape.HrInterval()
-                load_profile = np.interp(range(t_now, t_now+t_horizon, t_step), range(0, loadshape_tstep*len(load_profile),loadshape_tstep), load_profile)
-                # store the sample
-                netload[bus_name] = netload[bus_name] + load_profile
+                if len(loadshape_name)<1:
+                    netload[loadbusname] = netload[loadbusname] + base_kva_0
+                    print(f'loadshape not available, using basekva {base_kva_0}')
+                else:
+                    dss.LoadShape.Name(loadshape_name)
+                    load_profile = base_kva_0*dss.LoadShape.PMult()
+                    # sample only the ones for this time
+                    loadshape_tstep = dss.LoadShape.MinInterval()
+                    load_profile = np.interp(time_steps_desired, range(0, loadshape_tstep*len(load_profile),loadshape_tstep), load_profile)
+                    # store the sample
+                    netload[loadbusname] = netload[loadbusname] + load_profile
+                    print(f'loadshape at {loadbusname} with profile {load_profile}')
             i_load = dss.Loads.Next()
         # do the same for the pv systems
         i_pv = dss.PVsystems.First()
@@ -271,7 +296,7 @@ class open_dss_external_control:
                 pv_profile = kva_rated*dss.LoadShape.PMult()
                 # sample only the ones for this time
                 loadshape_tstep = dss.LoadShape.HrInterval()
-                pv_profile = np.interp(range(t_now, t_now+t_horizon, t_step), range(0, loadshape_tstep*len(pv_profile),loadshape_tstep), pv_profile)
+                pv_profile = np.interp(time_steps_desired, range(0, loadshape_tstep*len(pv_profile),loadshape_tstep), pv_profile)
                 # storage the sample
                 netload[bus_name] = netload[bus_name] + load_profile
             i_pv = dss.PVsystems.Next()
@@ -296,7 +321,7 @@ class open_dss_external_control:
     #    return netload
 
     
-    def process_control_messages(self, simulation_unix_time, msg_dict):
+    def process_control_messages(self, simulation_unix_time, msg_dict, der_busnames):
         # msg_dict is a dictionary with OpenDSS_message_types as keys.
         
         return_dict = {}
@@ -307,7 +332,7 @@ class open_dss_external_control:
             elif msg_enum == OpenDSS_message_types.get_all_DER:
                 return_dict[msg_enum] = self.get_der_soc_for_controlb()
             elif msg_enum == OpenDSS_message_types.get_basenetloads:
-                return_dict[msg_enum] = self.get_node_load_profile_for_controlb(t_now=simulation_unix_time/3600,t_horizon=simulation_unix_time/3600+12,t_step=0.25)
+                return_dict[msg_enum] = self.get_node_load_profile_for_controlb(t_now=simulation_unix_time/3600,t_horizon=simulation_unix_time/3600+12,t_step=0.25, der_busnames=der_busnames)
             else:
                 raise ValueError('Invalid message in caldera_ICM_aux::process_message.')
         

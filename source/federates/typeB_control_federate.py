@@ -4,7 +4,7 @@ from global_aux import OpenDSS_message_types
 import btms_siting
 import os
 
-def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constraints, control_obj, opendss_file_to_site_storage='opendss/ieee34.dss'):
+def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constraints, control_obj):
     # the dss_file_to_site_storage should be False if you already have behind the meter storage in the opendss file
     # it should be the path to the opendss main file if you want to site storage
 
@@ -106,14 +106,6 @@ def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constr
     if not dss_simulation_loaded:
         cleanup(fed)   
         return
-    
-    #======================================
-    #   Site behind the meter storage if
-    #   there is none and you have selected
-    #   to do so
-    #======================================
-    if opendss_file_to_site_storage:
-        DER_data = btms_siting.get_btms_siting(opendss_file_to_site_storage)
 
 
     #=====================================

@@ -1,10 +1,11 @@
 import helics as h
 from OpenDSS_aux import open_dss
+import btms_siting
 from Helics_Helper import send, receive, cleanup
 import json
 import os
 
-def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints, use_opendss):
+def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints, use_opendss, opendss_file_to_site_storage='../opendss/ieee34.dss'):
 
     print_communication = False
     #=====================================
@@ -90,10 +91,18 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
     #      Load and Check dss file
     #-------------------------------------    
     dss_loaded_successfully = dss_obj.initialize()
+
+    #======================================
+    #   Site behind the meter storage if
+    #   there is none and you have selected
+    #   to do so
+    #======================================
+    if opendss_file_to_site_storage:
+        DER_data = btms_siting.get_btms_siting(opendss_file_to_site_storage)
     
     h.helicsPublicationPublishBoolean(pub_dss_simulation_loaded, dss_loaded_successfully)
     der_data = dss_obj.get_der_soc_for_controlb()
-    netload = dss_obj.get_node_load_profile_for_controlb(t_now=federate_time/3600, t_horizon=end_simulation_unix_time/3600, t_step=grid_timestep_sec/3600)
+    netload = dss_obj.get_node_load_profile_for_controlb(t_now=federate_time/60, t_horizon=end_simulation_unix_time/60, t_step=grid_timestep_sec/60, der_busnames=DER_data['bus_name'])
     #print(f'der_data from opendss federate: {der_data}')
     h.helicsPublicationPublishString(pub_dss_der_status, json.dumps(der_data))
     h.helicsPublicationPublishString(pub_dss_basenetloads, json.dumps(netload))
@@ -101,7 +110,7 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
     if not dss_loaded_successfully:
         cleanup(fed)   
         return
-    
+
     #-------------------------------------------
     #   Advance to Actual Simulation Start Time
     #-------------------------------------------
