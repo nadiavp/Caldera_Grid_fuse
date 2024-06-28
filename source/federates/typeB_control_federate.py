@@ -3,6 +3,7 @@ from Helics_Helper import send, receive, cleanup
 from global_aux import OpenDSS_message_types
 import btms_siting
 import os
+import json
 
 def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constraints, control_obj):
     # the dss_file_to_site_storage should be False if you already have behind the meter storage in the opendss file
@@ -15,6 +16,8 @@ def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constr
     # NOTE: The "inputs" in the line below is the base-dir-inputs folder, not the io_dir.inputs_dir.
     config_file_path = os.path.join( io_dir.base_dir, os.path.join("inputs","helics_config"), json_config_file_name )
     fed = h.helicsCreateCombinationFederateFromConfig(config_file_path)
+
+    opendss_der_sub = h.helicsFederateRegisterSubscription(fed, "OpenDSS/typeB_control_der_data")
     
     sub_data_loaded = h.helicsFederateGetInputByTarget(fed, 'Load_Input_Files/data_loaded')
     sub_dss_simulation_loaded = h.helicsFederateGetInputByTarget(fed, 'OpenDSS/dss_simulation_loaded')
@@ -170,8 +173,8 @@ def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constr
             msg_dict = receive(OpenDSS_endpoint_local)
             DSS_state_info_dict = msg_dict[OpenDSS_endpoint_remote] 
             #not OpenDSS_message_types.get_all_DER in DSS_state_info_dict.keys() and 
-            if opendss_file_to_site_storage:
-                DSS_state_info_dict[OpenDSS_message_types.get_all_DER] = DER_data
+            #if opendss_file_to_site_storage:
+        DSS_state_info_dict[OpenDSS_message_types.get_all_DER] = json.loads(h.helicsInputGetString(opendss_der_sub))
 
         #-------------------------------------
         #     Solve Optimization Problem

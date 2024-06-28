@@ -94,7 +94,12 @@ class BTM_Control():
         min_power = self.min_power_l2
         
         hr_to_complete_charge = energy_remaining/max_power
-        min_to_start = max(int((math.floor(depart_time - hr_to_complete_charge*60*60) - current_time)/60), 0)
+        
+        min_to_start = int((math.floor(depart_time - hr_to_complete_charge*60*60) - current_time)/60)
+        if min_to_start < 0:
+            print(f'WARNING: not enough time to complete charge at {current_time}')
+            min_to_start = 0
+
     
         offset = list(range(self.time_step_mins, self.time_horizon*60+1, self.time_step_mins))
         Emax = []
@@ -103,8 +108,8 @@ class BTM_Control():
         last_idx = offset[0]
     
         for i in offset:
-            Emax.append(min(max_power*i/60, energy_remaining))
-            if i < min_to_start:
+            Emax_i = min(max_power*i/60, energy_remaining)
+            if i < min_to_start-self.time_step_mins:
                 ##Emin.append(0.0)
                 Emin.append(min(min_power*i/60, energy_remaining))
                 energy_so_far = min(min_power*i/60, energy_remaining)
@@ -113,6 +118,7 @@ class BTM_Control():
                 #Emin.append(min(max_power*(i-min_to_start)/60, energy_remaining))
                 Emin.append(min(energy_so_far + max_power*(i-last_idx)/60, 
                                 energy_remaining))
+            Emax.append(max(Emax_i, Emin[-1]))
         
         if hr_to_complete_charge > (depart_time-current_time)/60/60:
             return(Emax, Emax)

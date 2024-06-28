@@ -50,7 +50,7 @@ class btms_control(typeB_control):
     
     
     def terminate_this_federate(self):
-        print(self.datasets_dict[input_datasets.external_strategies])
+        #print(self.datasets_dict[input_datasets.external_strategies])
         if "ext_btms_ld_l2" in self.datasets_dict[input_datasets.external_strategies]:
             print(f'running with btms_ld_l2 federate')
             return False
@@ -151,10 +151,11 @@ class btms_control(typeB_control):
 
         if OpenDSS_message_types.get_all_DER in DSS_state_info_dict.keys():
             DER_data = DSS_state_info_dict[OpenDSS_message_types.get_all_DER]
+            #print(DER_data)
             Storage_SOC = DER_data["storage_SOC"]
             Storage_Capacity = DER_data["storage_cap_kwh"]
             #Net_load = DER_data["Net_load"]
-            storage_buses = DER_data["bus_name"]
+            storage_buses = DER_data["bus_names"]
             #print(f'DER_data stor soc: {DER_data["storage_SOC"]}')
             Net_load = DSS_state_info_dict[OpenDSS_message_types.get_basenetloads]
         else:
@@ -167,7 +168,7 @@ class btms_control(typeB_control):
         #      Define BTM controller
         #=================================
         btm_control = BTM_Control(time_step_mins=5, ess_size=Storage_Capacity, max_power_ess=40, min_power_ess=-40, 
-                                  max_power_l2=6.6, min_power_l2=1.5, time_horizon=1)
+                                  max_power_l2=7.2, min_power_l2=1.5, time_horizon=1)
         # time_horizon is in hours
         #btm_control = BTM_Control(time_step_mins=5, ess_size=40, max_power_ess=40, min_power_ess=-40, 
         #                          max_power_l2=6.6, min_power_l2=1.5, time_horizon=5)
@@ -203,7 +204,7 @@ class btms_control(typeB_control):
                 i_ce = 0
                 for CE in active_CEs:
                     len_active_CEs = len_active_CEs + 1
-                    print(f'btms CE.SE_id: {CE.SE_id}')
+                    #print(f'btms CE.SE_id: {CE.SE_id}')
                     ce_bus = self.se_group_by_bus['node_id'][CE.SE_id]
                     if ce_bus in storage_buses:
                         i_storage = storage_buses.index(ce_bus)
@@ -213,7 +214,7 @@ class btms_control(typeB_control):
                         active_buses.append(ce_bus)
                         storage_at_bus = True
                     else:
-                        bus_load_without_ev_ess.append(0)
+                        bus_load_without_ev_ess = list(np.zeros(int(btm_control.time_horizon*60/btm_control.time_step_mins)))
                     i_ce = i_ce+1
                 # remove duplicates
                 storages_involved = list(set(storages_involved))
@@ -312,14 +313,14 @@ class btms_control(typeB_control):
                 #=====================================================
                 # Solve optimization
                 #=====================================================
-                print(f'ther are {len(active_CEs)} and {len(storages_involved)} \n Emin is {Emin} \n Emax is {Emax}')
+                print(f'there are {len(active_CEs)} charge events and {len(storages_involved)} storages \n Emin is {Emin} \n Emax is {Emax}')
                 #p = non_pev_loads_forecast - pv_powers_forecast
                 p = bus_load_without_ev_ess
                 print(f'power without ev and ess is {p}')
                 x0 = np.zeros(len(p)) #np.ones(len(p))
                 results = btm_control.solve_optimization(x0, p, Emin, Emax) 
 
-                print(f'opt results: {results.x}')
+                #print(f'opt results: {results.x}')
                 
                 #=====================================================
                 # Allocate setpoint
@@ -377,7 +378,7 @@ class btms_control(typeB_control):
         #-----------------------------
         
         Caldera_control_info_dict = {}
-        print(f'pq pev setpoints {PQ_setpoints}')
+        #print(f'pq pev setpoints {PQ_setpoints}')
         if len(PQ_setpoints) > 0:
             Caldera_control_info_dict[Caldera_message_types.set_pev_charging_PQ] = PQ_setpoints
             print(f'first in list {PQ_setpoints[0].PkW}')

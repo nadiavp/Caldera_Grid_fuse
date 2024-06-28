@@ -33,8 +33,8 @@ class open_dss:
         return self.helper.initialize()
     
 
-    def process_control_messages(self, simulation_unix_time, message_dict):        
-        return self.helper.process_control_messages(simulation_unix_time, message_dict)
+    def process_control_messages(self, simulation_unix_time, message_dict, der_busnames=[]):        
+        return self.helper.process_control_messages(simulation_unix_time, message_dict, der_busnames)
 
     
     def set_caldera_pev_charging_loads(self, node_pevPQ):
@@ -108,8 +108,8 @@ class open_dss_helper:
 
         return is_successful
 
-    def process_control_messages(self, simulation_unix_time, message_dict):        
-        return self.dss_external_control.process_control_messages(simulation_unix_time, message_dict)
+    def process_control_messages(self, simulation_unix_time, message_dict, der_busnames):        
+        return self.dss_external_control.process_control_messages(simulation_unix_time, message_dict, der_busnames)
     
     def set_caldera_pev_charging_loads(self, node_pevPQ):
         self.node_pevPQ = node_pevPQ
@@ -247,8 +247,8 @@ class open_dss_external_control:
         #t_step = int(round(t_step))
         time_steps_desired = [ts*t_step + t_now for ts in range(n_steps)]
 
-        print(f'getting node load profiles for controlb:')
-        print(f'storages: {dss.Storages.AllNames()} and {der_busnames} \n ')
+        #print(f'getting node load profiles for controlb:')
+        #print(f'storages: {dss.Storages.AllNames()} and {der_busnames} \n ')
         netload = {}
         # first add the storage that is in the dss model
         for storage in dss.Storages.AllNames():
@@ -259,7 +259,7 @@ class open_dss_external_control:
             netload[bus_name] = np.zeros(n_steps)
         # then add the storage that's not in the model, but was added by the siting script
         for busname in der_busnames:
-            netload[busname['bus_name']] = np.zeros(n_steps)
+            netload[busname] = np.zeros(n_steps)
         # now get the load profiles for those buses
         i_load = dss.Loads.First()
         while i_load>0:
@@ -300,6 +300,9 @@ class open_dss_external_control:
                 # storage the sample
                 netload[bus_name] = netload[bus_name] + load_profile
             i_pv = dss.PVsystems.Next()
+        # convert numpy arrays to lists
+        for busname in netload.keys():
+            netload[busname] = netload[busname].tolist()
         return netload
 
 

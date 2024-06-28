@@ -14,11 +14,11 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
     # NOTE: The "inputs" in the line below is the base-dir-inputs folder, not the io_dir.inputs_dir.
     config_file_path = os.path.join( io_dir.base_dir, os.path.join("inputs","helics_config"), json_config_file_name )
     fed = h.helicsCreateCombinationFederateFromConfig(config_file_path)
+    pub_dss_der_status = h.helicsFederateRegisterPublication(fed, 'typeB_control_der_data', h.helics_data_type_string)
+    pub_dss_basenetloads = h.helicsFederateRegisterPublication(fed, 'typeB_control_basenetloads', h.helics_data_type_string)
     
     sub_data_loaded = h.helicsFederateGetInputByTarget(fed, 'Load_Input_Files/data_loaded')
     pub_dss_simulation_loaded = h.helicsFederateGetPublication(fed, 'dss_simulation_loaded')
-    pub_dss_der_status = h.helicsFederateGetPublication(fed, 'typeB_control_der_data')
-    pub_dss_basenetloads = h.helicsFederateGetPublication(fed, 'typeB_control_basenetloads')
 
     input_datasets_endpoint_local = h.helicsFederateGetEndpoint(fed, "input_datasets_endpoint")
     input_datasets_endpoint_remote = h.helicsEndpointGetDefaultDestination(input_datasets_endpoint_local)
@@ -97,13 +97,14 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
     #   there is none and you have selected
     #   to do so
     #======================================
-    if opendss_file_to_site_storage:
-        DER_data = btms_siting.get_btms_siting(opendss_file_to_site_storage)
+    #if opendss_file_to_site_storage:
+    #    DER_data = btms_siting.get_btms_siting(opendss_file_to_site_storage)
     
     h.helicsPublicationPublishBoolean(pub_dss_simulation_loaded, dss_loaded_successfully)
-    der_data = dss_obj.get_der_soc_for_controlb()
-    netload = dss_obj.get_node_load_profile_for_controlb(t_now=federate_time/60, t_horizon=end_simulation_unix_time/60, t_step=grid_timestep_sec/60, der_busnames=DER_data['bus_name'])
-    #print(f'der_data from opendss federate: {der_data}')
+    der_data = dss_obj.get_der_soc_for_controlb() # der_data should have 'Net_load', 'storage_SOC', 'storage_cap_kwh', 'storage_power_kw', 'names', 'bus_names'
+    der_busnames = der_data['bus_names']
+    netload = dss_obj.get_node_load_profile_for_controlb(t_now=federate_time/60, t_horizon=end_simulation_unix_time/60, t_step=grid_timestep_sec/60, der_busnames=der_busnames) #DER_data['bus_name'])
+
     h.helicsPublicationPublishString(pub_dss_der_status, json.dumps(der_data))
     h.helicsPublicationPublishString(pub_dss_basenetloads, json.dumps(netload))
     
@@ -187,7 +188,7 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
         #-------------------------------------        
         msg_obj = receive(typeB_control_endpoint)
         for source, msg_dict in msg_obj.items():
-            msg_dict = dss_obj.process_control_messages(federate_time, msg_dict)
+            msg_dict = dss_obj.process_control_messages(federate_time, msg_dict, der_busnames)
             if len(msg_dict) != 0:
                 send(msg_dict, typeB_control_endpoint, source)
 
