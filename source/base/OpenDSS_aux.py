@@ -210,7 +210,7 @@ class open_dss_external_control:
         return return_dict
 
     def get_der_soc_for_controlb(self):
-        storage_soc = {'Net_load':[], 'storage_SOC':[], 'storage_cap_kwh':[], 'storage_power_kw':[], 'names': [], 'bus_names': []}
+        storage_soc = {'Net_load':[], 'storage_SOC':[], 'storage_cap_kwh':[], 'storage_power_kw':[], 'names': [], 'bus_name': []}
         storage_soc['names'] = dss.Storages.AllNames()
         #print(f'storage names: {dss.Storages.AllNames()}')
         for storage_name in dss.Storages.AllNames():
@@ -220,7 +220,7 @@ class open_dss_external_control:
             storage_soc['storage_SOC'].append(dss.Storages.puSOC())
             storage_soc['storage_cap_kwh'].append(dss.Storages.kVARated())
             # make the bus the active element
-            storage_soc['bus_names'].append(dss.CktElement.BusNames()[0])
+            storage_soc['bus_name'].append(dss.CktElement.BusNames()[0])
             dss.Buses.Name(dss.CktElement.BusNames()[0])
             storage_soc['Net_load'].append(dss.CktElment.TotalPowers()[0]) # this is real power netload
         return storage_soc
@@ -239,7 +239,7 @@ class open_dss_external_control:
         # t_horizon is the horizon of the optimization in minutes
         # t_step is the timestep of the co-simulation (and therefore also optimization) in minutes
         # der_bunames is the list of bus names for any storage that was added but not 
-        # put in the opendss model. This can be taken from the der_data['bus_names'] list
+        # put in the opendss model. This can be taken from the der_data['bus_name'] list
         # used by the nrel_control_btms_ld_l2 controller
         n_steps = int(np.ceil((t_horizon-t_now)/t_step))
         #t_now = int(np.floor(t_now))

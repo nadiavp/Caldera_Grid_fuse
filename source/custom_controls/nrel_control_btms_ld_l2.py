@@ -155,7 +155,7 @@ class btms_control(typeB_control):
             Storage_SOC = DER_data["storage_SOC"]
             Storage_Capacity = DER_data["storage_cap_kwh"]
             #Net_load = DER_data["Net_load"]
-            storage_buses = DER_data["bus_names"]
+            storage_buses = DER_data["bus_name"]
             #print(f'DER_data stor soc: {DER_data["storage_SOC"]}')
             Net_load = DSS_state_info_dict[OpenDSS_message_types.get_basenetloads]
         else:

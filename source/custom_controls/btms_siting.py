@@ -7,7 +7,7 @@ import pandas as pd
 from opendssdirect import dss
 import sys
 
-def get_load_points(dss_loads=[], load_threshold=25, pv_threshold=5):
+def get_load_points(dss_loads=[], load_threshold=0, pv_threshold=5):
     # only add the load point if the threshold is above 350kw
     # or pv capacity is above 5 kw
     bus_df = pd.DataFrame({'bus_name':[],'load_peak':[], 'pv_cap':[]})
@@ -48,7 +48,7 @@ def assign_battery_sizes(bus_df):
     # dataframe of storage by bus
     bess_df = {'bus_name':[], 'storage_cap_kwh':[], 'storage_power_kw':[], "storage_SOC":[], 'bes_eff':[], 'Net_load':[]}
     for _, bus in bus_df.iterrows():
-        bess_df['bus_name'].append(bus)
+        bess_df['bus_name'].append(bus['bus_name'])
         if bus['pv_cap'] > 25 or bus['load_peak'] > 1000: # in kW
             cap = lgc_bes['storage_cap_kwh']
             pwr = lgc_bes['storage_power_kw']
@@ -66,8 +66,8 @@ def assign_battery_sizes(bus_df):
         bess_df["storage_SOC"].append(.5)
         bess_df['bes_eff'].append(0.98)
         bess_df['Net_load'].append(0)
-    # convert to dataframe
-    bess_df = pd.DataFrame.from_dict(bess_df)
+    ## convert to dataframe
+    #bess_df = pd.DataFrame.from_dict(bess_df)
     return bess_df
 
 def get_btms_siting(opendss_file):

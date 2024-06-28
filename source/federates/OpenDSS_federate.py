@@ -97,12 +97,18 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
     #   there is none and you have selected
     #   to do so
     #======================================
-    #if opendss_file_to_site_storage:
-    #    DER_data = btms_siting.get_btms_siting(opendss_file_to_site_storage)
+    if opendss_file_to_site_storage:
+        der_data = btms_siting.get_btms_siting(opendss_file_to_site_storage)
+    else:
+        der_data = {}
+
+    der_data.update(dss_obj.get_der_soc_for_controlb())
+    #der_data = dss_obj.get_der_soc_for_controlb() # der_data should have 'Net_load', 'storage_SOC', 'storage_cap_kwh', 'storage_power_kw', 'names', 'bus_name'
+    der_busnames = der_data['bus_name']
+    print(f'108 opendss der_busnames: {der_busnames}')
     
     h.helicsPublicationPublishBoolean(pub_dss_simulation_loaded, dss_loaded_successfully)
-    der_data = dss_obj.get_der_soc_for_controlb() # der_data should have 'Net_load', 'storage_SOC', 'storage_cap_kwh', 'storage_power_kw', 'names', 'bus_names'
-    der_busnames = der_data['bus_names']
+
     netload = dss_obj.get_node_load_profile_for_controlb(t_now=federate_time/60, t_horizon=end_simulation_unix_time/60, t_step=grid_timestep_sec/60, der_busnames=der_busnames) #DER_data['bus_name'])
 
     h.helicsPublicationPublishString(pub_dss_der_status, json.dumps(der_data))
@@ -158,7 +164,7 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
         #-------------------------------------
         # Send updated DER info to type B 
         #-------------------------------------
-        der_data = dss_obj.get_der_soc_for_controlb()
+        der_data.update(dss_obj.get_der_soc_for_controlb())
         #print(f'der_data from opendss federate: {der_data}')
         h.helicsPublicationPublishString(pub_dss_der_status, json.dumps(der_data))
     
