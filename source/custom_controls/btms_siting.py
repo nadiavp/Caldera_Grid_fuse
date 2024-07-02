@@ -10,7 +10,7 @@ import sys
 def get_load_points(dss_loads=[], load_threshold=0, pv_threshold=5):
     # only add the load point if the threshold is above 350kw
     # or pv capacity is above 5 kw
-    bus_df = pd.DataFrame({'bus_name':[],'load_peak':[], 'pv_cap':[]})
+    bus_df = pd.DataFrame(columns=['bus_name','load_peak', 'pv_cap'])
     for load_name in dss_loads:
         # if the load is negative, assume pv generation
         # if positive assume normal load
@@ -26,12 +26,12 @@ def get_load_points(dss_loads=[], load_threshold=0, pv_threshold=5):
         if -peak > pv_threshold:
             # first check to see if it's been added yet
             if not (bus_name in bus_df['bus_name']):
-                bus_df._append({'bus_name':bus_name,'load_peak':0, 'pv_cap':0})
+                bus_df = pd.concat([bus_df, pd.DataFrame.from_records({'bus_name':bus_name,'load_peak':0, 'pv_cap':0}, index=[0])])
             bus_df.loc[bus_df['bus_name']==bus_name,'pv_cap'] = bus_df.loc[bus_df['bus_name']==bus_name,'pv_cap'] + peak
         elif peak > load_threshold:
             # first check to see if it's been added yet
             if not (bus_name in bus_df['bus_name']):
-                bus_df = bus_df._append({'bus_name':bus_name,'load_peak':0, 'pv_cap':0}, ignore_index=True)
+                bus_df = pd.concat([bus_df, pd.DataFrame.from_records({'bus_name':bus_name,'load_peak':0, 'pv_cap':0}, index=[0])])
             bus_df.loc[bus_df['bus_name']==bus_name,'load_peak'] = bus_df.loc[bus_df['bus_name']==bus_name,'load_peak'] + peak
     return bus_df
 
