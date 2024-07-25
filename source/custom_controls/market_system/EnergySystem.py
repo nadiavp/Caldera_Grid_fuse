@@ -1299,10 +1299,12 @@ class EnergySystem:
         for t in range(T_mpc):
             #Setup linear power flow model:
             for i in range(N_nondispatch):
-                bus_id = self.nondispatch_assets[i]['bus_id']
+                #bus_id = self.nondispatch_assets[i]['bus_id']
                 phases_i = self.nondispatch_assets[i]['phases']
                 bus_number = self.nondispatch_assets[i]['number']
-                for ph_i in np.nditer(phases_i):
+                if isinstance(phases_i, int):
+                    phases_i = [phases_i]
+                for ph_i in phases_i:
                     bus_ph_index = 3*bus_number + ph_i #3*(bus_id-1) + ph_i
                     P_lin_buses[t,bus_number,ph_i] +=\
                     (G_wye_nondispatch[bus_ph_index,i]+\

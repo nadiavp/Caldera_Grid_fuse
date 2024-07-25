@@ -91,7 +91,6 @@ class LPMarketController():
         self.market = market
         energy_system = EnergySystem(storage_assets, nda_list, self.network, market, ts, hs, ts, hs)
         self.energy_system = energy_system
-        self.subscriptions.append(h.helicsFederateRegisterSubscription(self.fed, f'{self.feeder_name}/netloads', ""))
 
 
     def solve(self, DSS_state_info_dict):
@@ -108,12 +107,17 @@ class LPMarketController():
             non_disp_loads = DSS_state_info_dict[OpenDSS_message_types.get_basenetloads]
         #non_disp_loads = json.loads(h.helicsInputGetString(self.subscriptions[2]))
         # update the non dispatchable asset loads
-        for i_nda in range(len(self.nondispatch_assets)):
-            busname_i = self.nondispatch_assets[i_nda].bus_id
-            self.nondispatch_assets[i_nda].Pnet_pred = self.nondispatch_assets[i_nda].Pnet
-            self.nondispatch_assets[i_nda].Qnet_pred = self.nondispatch_assets[i_nda].Qnet
-            self.nondispatch_assets[i_nda].Pnet = non_disp_loads[busname_i][0]
-            self.nondispatch_assets[i_nda].Qnet = non_disp_loads[busname_i][1]
+        self.nondispatch_assets['Pnet'] = self.nondispatch_assets['Pnet_pred']
+        self.nondispatch_assets['Qnet'] = self.nondispatch_assets['Qnet_pred']
+        for busname_i in non_disp_loads.keys():
+            self.nondispatch_assets[self.nondispatch_assets['bus_id']==busname_i]['Pnet_pred'] = non_disp_loads[busname_i][0]
+            self.nondispatch_assets[self.nondispatch_assets['bus_id']==busname_i]['Qnet_pred'] = non_disp_loads[busname_i][1]
+        #for i_nda in range(len(self.nondispatch_assets)):
+        #    busname_i = self.nondispatch_assets.loc[i_nda,'bus_id']
+        #    self.nondispatch_assets.loc[i_nda, 'Pnet_pred'] = self.nondispatch_assets[i_nda, 'Pnet']
+        #    self.nondispatch_assets[i_nda].Qnet_pred = self.nondispatch_assets[i_nda, 'Qnet']
+        #    self.nondispatch_assets[i_nda].Pnet = non_disp_loads[busname_i][0]
+        #    self.nondispatch_assets[i_nda].Qnet = non_disp_loads[busname_i][1]
         # update energy system with new asset loads
         nda_list = self.nondispatch_assets
         nda_list = nda_list.to_dict('records')

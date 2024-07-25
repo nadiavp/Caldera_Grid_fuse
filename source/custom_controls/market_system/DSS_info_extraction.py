@@ -179,6 +179,8 @@ def dssConvert(feeder,dssName, save_model=True):
             YprmErrDiag= YprmErrDiag + [np.linalg.norm(Yprm0[lineName] - YprmDiag)/np.linalg.norm(Yprm0[lineName])] # for validation/checking
             i = LNS.Next()
 
+        # remove any empty rows
+        line_df = line_df[line_df['busA']!=0]
         # print('Primitive impedance errors:',YprmErrDiag) # error checking
 
 

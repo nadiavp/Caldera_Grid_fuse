@@ -728,8 +728,6 @@ class Network_3ph():
         for line_ij in range(len(self.line_df)):
             bus_name_i = self.line_df.iloc[line_ij]['busA']
             bus_name_j = self.line_df.iloc[line_ij]['busB']
-            print(self.line_df)
-            print(f'bus_name_i {bus_name_i} has number: {self.bus_df[self.bus_df["name"]==bus_name_i]["number"]}')
             bus_i_Yindex = 3*self.bus_df\
                     [self.bus_df['name']==bus_name_i]['number'].values[0]
             bus_j_Yindex = 3*self.bus_df\

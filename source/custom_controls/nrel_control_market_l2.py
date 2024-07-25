@@ -92,28 +92,30 @@ class market_control(typeB_control):
         prices_export = [[0.8]]*int(24*3600/self.timestep_sec)
         self.market.setup_market_controller(prices_export=prices_export, demand_charge=0)
 
-        if self.helics_config_path == '':
-            fedinfo = h.helicsCreateFederateInfo()
-            h.helicsFederateInfoSetCoreName(fedinfo, self.name)
-            h.helicsFederateInfoSetCoreInitString(fedinfo, "--federates=1")
-            self.fed = h.helicsCreateValueFederate(self.name, fedinfo)
-            self.publications.append(h.helicsFederateRegisterPublication(self.fed, 'control_setpoints', h.HelicsDataType.STRING)) # this is published as a json string of a dictionary
-            self.subscriptions.append(h.helicsFederateRegisterSubscription(self.fed, f'{self.feeder_name}/voltages', ""))
-            self.subscriptions.append(h.helicsFederateRegisterSubscription(self.fed, f'{self.feeder_name}/currents', ""))
-        else:
-            self.fed = h.helicsCreateValueFederateFromConfig(self.helics_config_path)
-        h.helicsFederateSetTimeProperty(self.fed, h.helics_property_time_delta, self.timestep_sec)
+        #if self.helics_config_path == '':
+        #    #fedinfo = h.helicsCreateFederateInfo()
+        #    #h.helicsFederateInfoSetCoreName(fedinfo, self.name)
+        #    #h.helicsFederateInfoSetCoreInitString(fedinfo, "--federates=1")
+        #    #self.fed = h.helicsCreateValueFederate(self.name, fedinfo)
+        #    #self.publications.append(h.helicsFederateRegisterPublication(self.fed, 'control_setpoints', h.HelicsDataType.STRING)) # this is published as a json string of a dictionary
+        #    #self.subscriptions.append(h.helicsFederateRegisterSubscription(self.fed, f'{self.feeder_name}/voltages', ""))
+        #    #self.subscriptions.append(h.helicsFederateRegisterSubscription(self.fed, f'{self.feeder_name}/currents', ""))
+        #    #self.subscriptions.append(h.helicsFederateRegisterSubscription(self.fed, f'{self.feeder_name}/netloads', ""))
+        #else:
+        #    print(f'creating market controller federate from {self.helics_config_path}')
+        #    self.fed = h.helicsCreateValueFederateFromConfig(self.helics_config_path)
+        #h.helicsFederateSetTimeProperty(self.fed, h.helics_property_time_delta, self.timestep_sec)
 
         return
 
-    def run_control_opt(self):
+    def solve(self, federate_time, Caldera_state_info_dict, DSS_state_info_dict):
         # this function solves the control parameters
         ev_control_setpoints = {}
 
         # first get the updated grid status
         #voltages = json.loads(h.helicsInputGetString(self.subscriptions[0]))
         #currents = json.loads(h.helicsInputGetString(self.subscriptions[1]))
-        DSS_state_info_dict = get_messages_to_request_state_info_from_OpenDSS(self, next_control_timestep_start_unix_time)
+        #DSS_state_info_dict = get_messages_to_request_state_info_from_OpenDSS(self, federate_time)
 
         ev_control_setpoints = self.market.solve(DSS_state_info_dict)
 
