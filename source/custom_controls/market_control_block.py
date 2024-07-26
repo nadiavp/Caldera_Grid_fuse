@@ -121,7 +121,7 @@ class LPMarketController():
         # update energy system with new asset loads
         nda_list = self.nondispatch_assets
         nda_list = nda_list.to_dict('records')
-        self.energy_system = EnergySystem(self.storage_assets, nda_list, self.network, self.market, ts, hs, ts, hs)
+        #self.energy_system = EnergySystem(self.storage_assets, nda_list, self.network, self.market, ts, hs, ts, hs)
 
         network = self.network
 
