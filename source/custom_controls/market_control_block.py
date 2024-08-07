@@ -53,6 +53,10 @@ class LPMarketController():
     def setup_market_controller(self, prices_export, demand_charge, Pmax_market=1000000, Pmin_market=-100000):       
         hs = self.horizon_sec
         ts = self.timestep_sec
+        if not isinstance(Pmax_market, list):
+            Pmax_market = [Pmax_market]*int(hs/ts)
+        if not isinstance(Pmin_market, list):
+            Pmin_market = [Pmin_market]*int(hs/ts)
         # setup market and energy management objects
 
         if self.name == "TOU_withoutV":            

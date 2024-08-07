@@ -87,6 +87,7 @@ class EnergySystem:
         self.T_ems = T_ems
         self.dt = dt
         self.T = T
+        self.n_timesteps = int(T/dt)
 
 #######################################
 ### Open Loop Control Methods
@@ -677,10 +678,13 @@ class EnergySystem:
         #convert P_EV signals to system time-series scale
         N_ESs = len(self.storage_assets)
         N_nondispatch = len(self.nondispatch_assets)
-        P_ESs = np.zeros([self.T,N_ESs])
-        for t in range(self.T):
-            t_ems = int(t/(self.dt_ems/self.dt))
-            P_ESs[t,:] = P_ES_ems[t_ems,:]
+        if N_ESs>0:
+            P_ESs = np.zeros([self.n_timesteps,N_ESs])
+            for t in range(self.n_timesteps):
+                t_ems = int(t/(self.dt_ems/self.dt))
+                P_ESs[t,:] = P_ES_ems[t_ems,:]
+        else:
+            P_ES_ems = []
         #######################################
         ### STEP 2: update the controllable assets
         #######################################
@@ -691,46 +695,50 @@ class EnergySystem:
         #######################################
         N_buses = self.network.N_buses
         N_phases = self.network.N_phases
-        P_demand_buses = np.zeros([self.T,N_buses,N_phases])
-        Q_demand_buses = np.zeros([self.T,N_buses,N_phases])
+        P_demand_buses = np.zeros([self.n_timesteps,N_buses,N_phases])
+        Q_demand_buses = np.zeros([self.n_timesteps,N_buses,N_phases])
         #calculate the total real and reactive power demand at each bus phase
         for i in range(N_ESs):
-            bus_id = self.storage_assets[i].bus_id
+            bus_ind = int(self.network.bus_df[self.network.bus_df['name'] == self.storage_assets[i].bus_id]['number'])
             phases_i = self.storage_assets[i].phases
             N_phases_i = np.size(phases_i)
             for ph_i in np.nditer(phases_i):
-                P_demand_buses[:,bus_id,ph_i] +=\
+                P_demand_buses[:,bus_ind,ph_i] +=\
                 self.storage_assets[i].Pnet/N_phases_i
-                Q_demand_buses[:,bus_id,ph_i] +=\
+                Q_demand_buses[:,bus_ind,ph_i] +=\
                 self.storage_assets[i].Qnet/N_phases_i
         for i in range(N_nondispatch):
             bus_id = self.nondispatch_assets[i]['bus_id']
+            bus_ind = int(self.network.bus_df[self.network.bus_df['name'] == bus_id]['number'])
             phases_i = self.nondispatch_assets[i]['phases']
             N_phases_i = np.size(phases_i)
-            for ph_i in np.nditer(phases_i):
-                P_demand_buses[:,bus_id,ph_i] +=\
+            if isinstance(phases_i, int):
+                phases_i = [phases_i]
+            for ph_i in phases_i:
+                P_demand_buses[:,bus_ind,ph_i] +=\
                 self.nondispatch_assets[i]['Pnet']/N_phases_i
-                Q_demand_buses[:,bus_id,ph_i] +=\
+                Q_demand_buses[:,bus_ind,ph_i] +=\
                 self.nondispatch_assets[i]['Qnet']/N_phases_i
         #Store power flow results as a list of network objects
 
-        PF_network_res = []
-        print('*** SIMULATING THE NETWORK ***')
-        for t in range(self.T):
-            #for each time interval:
-            #set up a copy of the network for simulation interval t
-            network_t = copy.deepcopy(self.network)
-            network_t.clear_loads()
-            for bus_id in range(N_buses):
-                for ph_i in range(N_phases):
-                    Pph_t = P_demand_buses[t,bus_id,ph_i]
-                    Qph_t = Q_demand_buses[t,bus_id,ph_i]
-                    #add P,Q loads to the network copy
-                    network_t.set_load(bus_id,ph_i,Pph_t,Qph_t)
-            #run the power flow simulation
-            network_t.zbus_pf()
-            PF_network_res.append(network_t)
-        print('*** NETWORK SIMULATION COMPLETE ***')
+        PF_network_res = self.network
+        #in co-simulation, you don't need to simulate the network here. Opendss will take care of it
+        #print('*** SIMULATING THE NETWORK ***')
+        #for t in range(self.n_timesteps):
+        #    #for each time interval:
+        #    #set up a copy of the network for simulation interval t
+        #    network_t = copy.deepcopy(self.network)
+        #    network_t.clear_loads()
+        #    for bus_id in range(N_buses):
+        #        for ph_i in range(N_phases):
+        #            Pph_t = P_demand_buses[t,bus_id,ph_i]
+        #            Qph_t = Q_demand_buses[t,bus_id,ph_i]
+        #            #add P,Q loads to the network copy
+        #            network_t.set_load(bus_id,ph_i,Pph_t,Qph_t)
+        #    #run the power flow simulation
+        #    network_t.zbus_pf()
+        #    PF_network_res.append(network_t)
+        #print('*** NETWORK SIMULATION COMPLETE ***')
 
         return {'PF_network_res' :PF_network_res,\
                 'P_ES_ems':P_ES_ems,\
@@ -1172,17 +1180,18 @@ class EnergySystem:
         #######################################
         prob = pic.Problem()
         t0_dt = int(t0*self.dt_ems/self.dt)
-        T_mpc = self.T_ems-t0
-        T_range = np.arange(t0,self.T_ems)
+        T_mpc = int((self.T_ems-t0)/self.dt)
+        print(f'timestep is {t0_dt}, horizon is {T_mpc} or {self.T}')
+        T_range = np.arange(t0,self.T_ems,int(self.dt_ems))
         N_buses = self.network.N_buses
         N_phases = self.network.N_phases
         N_ES = len(self.storage_assets)
         N_nondispatch = len(self.nondispatch_assets)
-        P_demand_actual = np.zeros([self.T,N_nondispatch])
-        P_demand_pred = np.zeros([self.T,N_nondispatch])
+        P_demand_actual = np.zeros([T_mpc,N_nondispatch])
+        P_demand_pred = np.zeros([T_mpc,N_nondispatch])
         P_demand = np.zeros([T_mpc,N_nondispatch])
-        Q_demand_actual = np.zeros([self.T,N_nondispatch])
-        Q_demand_pred = np.zeros([self.T,N_nondispatch])
+        Q_demand_actual = np.zeros([T_mpc,N_nondispatch])
+        Q_demand_pred = np.zeros([T_mpc,N_nondispatch])
         Q_demand = np.zeros([T_mpc,N_nondispatch])
         for i in range(N_nondispatch):
             P_demand_actual[:,i] = self.nondispatch_assets[i]['Pnet']
@@ -1192,10 +1201,9 @@ class EnergySystem:
         #Assemble P_demand out of P actual and P predicted and convert to EMS
         #time series scale
         for i in range(N_nondispatch):
-            for t_ems in T_range:
-                t_indexes = (t_ems*self.dt_ems/self.dt +
-                             np.arange(0,self.dt_ems/self.dt)).astype(int)
-                if t_ems == t0:
+            for t_ems in range(len(T_range)):
+                t_indexes = slice(int(t_ems*self.dt_ems/self.dt),int((t_ems+1)*self.dt_ems/self.dt))
+                if T_range[t_ems] == t0:
                     P_demand[t_ems-t0,i] =\
                     np.mean(P_demand_actual[t_indexes,i])
                     Q_demand[t_ems-t0,i] = \
@@ -1204,7 +1212,7 @@ class EnergySystem:
                     P_demand[t_ems-t0,i] = np.mean(P_demand_pred[t_indexes,i])
                     Q_demand[t_ems-t0,i] = np.mean(Q_demand_pred[t_indexes,i])
         #get total ES system demand (before optimisation)
-        Pnet_ES_sum = np.zeros(self.T)
+        Pnet_ES_sum = np.zeros(int(self.T/self.dt_ems))
         for i in range(N_ES):
             Pnet_ES_sum += self.storage_assets[i].Pnet
         #get the maximum (historical) demand before t0
@@ -1219,6 +1227,7 @@ class EnergySystem:
                                                  Pnet_ES_sum[0:t0_dt])
 
         #Set up Matrix linking nondispatchable assets to their bus and phase
+        print(f'creating G nondispatch line 1222 of EnergySystem.py')
         G_wye_nondispatch = np.zeros([3*(N_buses),N_nondispatch])
         G_del_nondispatch = np.zeros([3*(N_buses),N_nondispatch])
         #bus_ph_index = 0
@@ -1240,6 +1249,7 @@ class EnergySystem:
                     G_del_nondispatch[bus_ph_index,i] = 1/asset_N_phases
                 #bus_ph_index = bus_ph_index + 1
         #Set up Matrix linking energy storage assets to their bus and phase
+        print(f'creating G ES line 1244 in EnergySystem.py')
         G_wye_ES = np.zeros([3*(N_buses-1),N_ES])
         G_del_ES = np.zeros([3*(N_buses-1),N_ES])
         for i in range(N_ES):
@@ -1262,6 +1272,8 @@ class EnergySystem:
                                                G_del_nondispatch),axis=0)
         G_wye_ES_PQ = np.concatenate((G_wye_ES,G_wye_ES),axis=0)
         G_del_ES_PQ = np.concatenate((G_del_ES,G_del_ES),axis=0)
+
+        print(f'setting up optimization variables line 1268')
         #######################################
         ### STEP 1: set up decision variables
         #######################################
@@ -1289,7 +1301,7 @@ class EnergySystem:
         P_max_demand = prob.add_variable('P_max_demand',
                                          1, vtype='continuous')
 
-
+        print('setting up linear power flow models')
         #######################################
         ### STEP 2: set up linear power flow models
         #######################################
@@ -1297,38 +1309,43 @@ class EnergySystem:
         P_lin_buses = np.zeros([T_mpc,N_buses,N_phases])
         Q_lin_buses = np.zeros([T_mpc,N_buses,N_phases])
         for t in range(T_mpc):
-            #Setup linear power flow model:
-            for i in range(N_nondispatch):
-                #bus_id = self.nondispatch_assets[i]['bus_id']
-                phases_i = self.nondispatch_assets[i]['phases']
-                bus_number = self.nondispatch_assets[i]['number']
-                if isinstance(phases_i, int):
-                    phases_i = [phases_i]
-                for ph_i in phases_i:
-                    bus_ph_index = 3*bus_number + ph_i #3*(bus_id-1) + ph_i
-                    P_lin_buses[t,bus_number,ph_i] +=\
-                    (G_wye_nondispatch[bus_ph_index,i]+\
-                     G_del_nondispatch[bus_ph_index,i])*P_demand[t,i]
-                    Q_lin_buses[t,bus_number,ph_i] +=\
-                    (G_wye_nondispatch[bus_ph_index,i]+\
-                     G_del_nondispatch[bus_ph_index,i])*Q_demand[t,i]
-            #set up a copy of the network for MPC interval t
-            network_t = copy.deepcopy(self.network)
-            network_t.clear_loads()
-            for bus_id in range(N_buses):
-                for ph_i in range(N_phases):
-                    Pph_t = P_lin_buses[t,bus_id,ph_i]
-                    Qph_t = Q_lin_buses[t,bus_id,ph_i]
-                    #add P,Q loads to the network copy
-                    network_t.set_load(bus_id,ph_i,Pph_t,Qph_t)
-            network_t.zbus_pf()
-            v_lin0 = network_t.v_net_res
-            S_wye_lin0 = network_t.S_PQloads_wye_res
-            S_del_lin0 = network_t.S_PQloads_del_res
-            network_t.linear_model_setup(v_lin0,S_wye_lin0,S_del_lin0)
-            # note that phases need to be 120degrees out for good results
-            network_t.linear_pf()
+            if t == 0:
+                #Setup linear power flow model:
+                for i in range(N_nondispatch):
+                    #bus_id = self.nondispatch_assets[i]['bus_id']
+                    phases_i = self.nondispatch_assets[i]['phases']
+                    bus_number = self.nondispatch_assets[i]['number']
+                    if isinstance(phases_i, int):
+                        phases_i = [phases_i]
+                    for ph_i in phases_i:
+                        bus_ph_index = 3*bus_number + ph_i #3*(bus_id-1) + ph_i
+                        P_lin_buses[t,bus_number,ph_i] +=\
+                        (G_wye_nondispatch[bus_ph_index,i]+\
+                        G_del_nondispatch[bus_ph_index,i])*P_demand[t,i]
+                        Q_lin_buses[t,bus_number,ph_i] +=\
+                        (G_wye_nondispatch[bus_ph_index,i]+\
+                        G_del_nondispatch[bus_ph_index,i])*Q_demand[t,i]
+                #set up a copy of the network for MPC interval t
+                network_t = copy.deepcopy(self.network)
+                network_t.clear_loads()
+                for bus_id in range(N_buses):
+                    for ph_i in range(N_phases):
+                        Pph_t = P_lin_buses[t,bus_id,ph_i]
+                        Qph_t = Q_lin_buses[t,bus_id,ph_i]
+                        #add P,Q loads to the network copy
+                        network_t.set_load(bus_id,ph_i,Pph_t,Qph_t)
+                network_t.zbus_pf()
+                v_lin0 = network_t.v_net_res
+                S_wye_lin0 = network_t.S_PQloads_wye_res
+                S_del_lin0 = network_t.S_PQloads_del_res
+                print('setting up linear model')
+                network_t.linear_model_setup(v_lin0,S_wye_lin0,S_del_lin0)
+                # note that phases need to be 120degrees out for good results
+                print('running linear powerflow')
+                network_t.linear_pf()
             PF_networks_lin.append(network_t)
+
+        print('setting up constraints')
         #######################################
         ### STEP 3: set up constraints
         #######################################
@@ -1495,11 +1512,13 @@ class EnergySystem:
                                                 * self.storage_assets[i].Emax)
                                            - self.storage_assets[i].E[t0_dt]))
 
+        print('set up objective function')
         #######################################
         ### STEP 4: set up objective
         #######################################
-        # minimum terminal energy dummy variable  constraint
-        prob.add_constraint(E_T_min[i] >= 0)
+        # minimum terminal energy dummy variable  constraint added directly above
+        if N_ES > 0:
+            prob.add_constraint(E_T_min[i] >= 0)
         #coeff for objective terminal soft constraint
         terminal_const = 1e3
         prices_import = pic.new_param('prices_import',
@@ -1507,18 +1526,24 @@ class EnergySystem:
         prices_export = pic.new_param('prices_export',
                                       self.market.prices_export)
 
-
-        prob.set_objective('min', self.market.demand_charge*\
-                           (P_max_demand+P_max_demand_pre_t0) +
-                           sum(sum(self.dt_ems*self.storage_assets[i].\
-                                   c_deg_lin*(P_ES_ch[t,i]+
-                                              P_ES_dis[t,i])\
-                                              for i in range(N_ES))\
-                            + self.dt_ems*prices_import[t0+t]*P_import[t]\
-                            - self.dt_ems*prices_export[t0+t]*P_export[t]
-                             for t in range(T_mpc))\
-                            + sum(terminal_const*E_T_min[i]\
-                                  for i in range(N_ES)))
+        if N_ES>0:
+            prob.set_objective('min', self.market.demand_charge*\
+                            (P_max_demand+P_max_demand_pre_t0) +
+                            sum(sum(self.dt_ems*self.storage_assets[i].\
+                                    c_deg_lin*(P_ES_ch[t,i]+
+                                                P_ES_dis[t,i])\
+                                                for i in range(N_ES))\
+                                + self.dt_ems*prices_import[t0+t]*P_import[t]\
+                                - self.dt_ems*prices_export[t0+t]*P_export[t]
+                                for t in range(T_mpc))\
+                                + sum(terminal_const*E_T_min[i]\
+                                    for i in range(N_ES)))
+        else:
+            prob.set_objective('min', self.market.demand_charge*\
+                            (P_max_demand+P_max_demand_pre_t0) +
+                            sum(self.dt_ems*prices_import[t0+t]*P_import[t]\
+                                - self.dt_ems*prices_export[t0+t]*P_export[t]
+                                for t in range(T_mpc)))
 
         #######################################
         ### STEP 5: solve the optimisation
@@ -1527,7 +1552,10 @@ class EnergySystem:
         prob.solve(verbose = 2, solver='glpk')
         #prob.solve(verbose = 0)
         print('*** OPTIMISATION COMPLETE ***')
-        P_ES_val = np.matrix(P_ES.value)
+        if N_ES>0:
+            P_ES_val = np.matrix(P_ES.value)
+        else:
+            P_ES_val = []
         P_import_val = np.matrix(P_import.value)
         P_export_val = np.matrix(P_export.value)
         P_demand_val = np.matrix(P_demand)
