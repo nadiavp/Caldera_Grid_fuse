@@ -115,6 +115,7 @@ from get_customized_inputs import get_customized_pev_ramping
 from control_strategy_C import control_strategy_C
 from nrel_control_voltwatt_ld_l2 import voltwatt_control
 from nrel_control_btms_ld_l2 import btms_control
+from nrel_control_market_l2 import market_control
 
 #================================================
 
@@ -278,9 +279,9 @@ if __name__ == '__main__':
     #   Control Strategy_B Federate
     #-------------------------------
     json_config_file_name = 'control_strategy_B.json'
-    CS_B_obj = btms_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_Sep_Shellbank_22700.csv')    
-    p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_B_obj,), name="control_strategy_B_federate")
-    processes.append(p)
+    #CS_B_obj = btms_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_Sep_Shellbank_22700.csv')    
+    #p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_B_obj,), name="control_strategy_B_federate")
+    #processes.append(p)
     
     #-------------------------------
     #   Control Strategy_C Federate
@@ -289,7 +290,17 @@ if __name__ == '__main__':
     CS_C_obj = control_strategy_C(io_dir, simulation_time_constraints)
     p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_C_obj,), name="control_strategy_C_federate")
     #processes.append(p)
-    
+
+    #------------------------------
+    #   Market Control Federate
+    #------------------------------
+    json_config_file_name = 'control_strategy_market.json'
+    horizon_sec = 3600*24/2 #(end_simulation_unix_time - start_simulation_unix_time)
+    print(f'optimization horizon is {horizon_sec}')
+    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_Sep_Shellbank_22700_24hr.csv',
+        name='market_control', helics_config_path=json_config_file_name, timestep_sec=300, feeder_name='shellbank', horizon_sec=horizon_sec)
+    p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='market_control_federate')
+    processes.append(p)
 
     for p in processes:
         p.start()

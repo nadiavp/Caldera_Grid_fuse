@@ -31,6 +31,7 @@ class market_control(typeB_control):
         self.charge_events = []
         self.control_setpoints = {'evse0':0, 'evse1':0, 'evse2':0}
         self.voltages = []
+        self.se_file = input_se_csv
         # these are for if you want time-step based sim
         self.timestep_sec = timestep_sec
         self.horizon_sec = horizon_sec
@@ -87,8 +88,11 @@ class market_control(typeB_control):
     def initialize(self):
         # this function loads the pricing, forecast, 
         # loads plug-in time, departure time, and energy needs
-        dss_file_name = 'opendss/'+self.feeder_name+'/Master.dss'     
-        self.market = LPMarketController(dss_file_name=dss_file_name, feeder_name=self.feeder_name, helics_config_path=self.helics_config_path, horizon_sec=self.horizon_sec, timestep_sec=self.timestep_sec )
+        dss_file_name = 'opendss/'+self.feeder_name+'/Master.dss'  
+        evse_df = pd.read_csv(self.se_file)   
+        self.market = LPMarketController(dss_file_name=dss_file_name, feeder_name=self.feeder_name,\
+         helics_config_path=self.helics_config_path, horizon_sec=self.horizon_sec, timestep_sec=self.timestep_sec,\
+         evse_df = evse_df )
         prices_export = [[0.8]]*int(24*3600/self.timestep_sec)
         self.market.setup_market_controller(prices_export=prices_export, demand_charge=0)
 

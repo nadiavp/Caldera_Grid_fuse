@@ -75,8 +75,8 @@ class EnergySystem:
 
 
     """
-    def __init__(self, storage_assets, nondispatch_assets, network, market,
-                 dt, T, dt_ems, T_ems, building_assets=[], evse_assets=[]):
+    def __init__(self, nondispatch_assets, network, market,
+                 dt, T, dt_ems, T_ems,storage_assets=[], building_assets=[], evse_assets=[]):
         self.storage_assets = storage_assets
         self.evse_assets = evse_assets
         self.building_assets = building_assets
@@ -88,6 +88,7 @@ class EnergySystem:
         self.dt = dt
         self.T = T
         self.n_timesteps = int(T/dt)
+        self.opt_var_dict = {} # this is a dictionary of the 
 
 #######################################
 ### Open Loop Control Methods
@@ -464,44 +465,23 @@ class EnergySystem:
                 buses_Qnet[t,bus_i] = network_t.res_bus['q_mvar'][bus_i]*1e3
 
         print('*** NETWORK SIMULATION COMPLETE ***')
-
-        if N_ESs > 0 and N_BLDGs > 0:
-            output = {'buses_Vpu':buses_Vpu,\
+        output = {'buses_Vpu':buses_Vpu,\
                 'buses_Vang':buses_Vang,\
                 'buses_Pnet':buses_Pnet,\
                 'buses_Qnet':buses_Qnet,\
                 'Pnet_market':Pnet_market,\
                 'Qnet_market':Qnet_market,\
-                'P_ES_ems':P_ES_ems,\
-                'P_BLDG_ems':P_BLDG_ems,\
                 'P_import_ems':P_import_ems,\
                 'P_export_ems':P_export_ems,\
                 'P_demand_ems':P_demand_ems}
-        elif N_ESs == 0 and N_BLDGs > 0:
-            output = {'buses_Vpu':buses_Vpu,\
-                'buses_Vang':buses_Vang,\
-                'buses_Pnet':buses_Pnet,\
-                'buses_Qnet':buses_Qnet,\
-                'Pnet_market':Pnet_market,\
-                'Qnet_market':Qnet_market,\
-                'P_BLDG_ems':P_BLDG_ems,\
-                'P_import_ems':P_import_ems,\
-                'P_export_ems':P_export_ems,\
-                'P_demand_ems':P_demand_ems}
-        elif N_ESs > 0 and N_BLDGs == 0:
-            output = {'buses_Vpu':buses_Vpu,\
-                'buses_Vang':buses_Vang,\
-                'buses_Pnet':buses_Pnet,\
-                'buses_Qnet':buses_Qnet,\
-                'Pnet_market':Pnet_market,\
-                'Qnet_market':Qnet_market,\
-                'P_ES_ems':P_ES_ems,\
-                'P_import_ems':P_import_ems,\
-                'P_export_ems':P_export_ems,\
-                'P_demand_ems':P_demand_ems}
-        else:
+        if N_EVSE > 0:
+            output['P_EVSE'] = P_EVSE_ems
+        if N_ESs > 0:
+            output['P_ES_ems'] = P_ES_ems
+        if N_BLDGs > 0:
+            output['P_BLDG_ems'] = P_BLDG_ems
+        if N_EVSE == 0 and N_ESs==0 and N_BLDGs==0:
             raise ValueError('No dispatchable assets.')
-
 
         return output
 
@@ -1186,6 +1166,7 @@ class EnergySystem:
         N_buses = self.network.N_buses
         N_phases = self.network.N_phases
         N_ES = len(self.storage_assets)
+        N_EVSE = len(self.evse_assets)
         N_nondispatch = len(self.nondispatch_assets)
         P_demand_actual = np.zeros([T_mpc,N_nondispatch])
         P_demand_pred = np.zeros([T_mpc,N_nondispatch])
@@ -1213,8 +1194,8 @@ class EnergySystem:
                     Q_demand[t_ems-t0,i] = np.mean(Q_demand_pred[t_indexes,i])
         #get total ES system demand (before optimisation)
         Pnet_ES_sum = np.zeros(int(self.T/self.dt_ems))
-        for i in range(N_ES):
-            Pnet_ES_sum += self.storage_assets[i].Pnet
+        #for i in range(N_ES):
+        #    Pnet_ES_sum += self.storage_assets[i].Pnet
         #get the maximum (historical) demand before t0
         if t0 == 0:
             P_max_demand_pre_t0 = 0
@@ -1253,14 +1234,20 @@ class EnergySystem:
         G_wye_ES = np.zeros([3*(N_buses-1),N_ES])
         G_del_ES = np.zeros([3*(N_buses-1),N_ES])
         for i in range(N_ES):
-            asset_N_phases = self.storage_assets[i].phases.size
-            bus_id = self.storage_assets[i].bus_id
-            bus_number = self.storage_assets[i].bus_number
+            asset_N_phases = 1#all are single phase #self.storage_assets[i].phases.size
+            #print(self.storage_assets[i])
+            #print(self.storage_assets.keys())
+            bus_id = self.storage_assets['bus_id'][i]
+            bus_number = self.network.bus_df[self.network.bus_df['name']==bus_id]['number']
+            #bus_number = self.storage_assets[i]['bus_number']
             # check if Wye connected
-            wye_flag = self.network.bus_df[self.\
-                                           network.bus_df['name']==\
-                                           bus_id]['connect'].values[0]=='Y'
-            for ph in np.nditer(self.storage_assets[i].phases):
+            wye_flag = self.network.bus_df[self.network.bus_df['name']==bus_id]['connect'].values
+            if len(wye_flag)>0:
+                wye_flag = wye_flag[0]=='Y'
+            else: 
+                wye_flag = False
+            #es_bus_phases = self.storage_assets[i].phases
+            for ph in np.nditer([1]):#es_bus_phases
                 bus_ph_index = 3*bus_number + ph #3*(bus_id-1) + ph
                 if wye_flag is True:
                     G_wye_ES[bus_ph_index,i] = 1/asset_N_phases
@@ -1291,6 +1278,9 @@ class EnergySystem:
             # (positive) minimum terminal energy dummy variable
             E_T_min = prob.add_variable('E_T_min',
                                     N_ES, vtype='continuous')
+        if N_EVSE>0:
+            P_EVSE = prob.add_variable('P_EVSE', 
+                                    (T_mpc, N_EVSE), vtype='continuous')
         # (positive) net power imports
         P_import = prob.add_variable('P_import',
                                      (T_mpc,1), vtype='continuous')
@@ -1365,7 +1355,7 @@ class EnergySystem:
                                                   P_ES_dis[:,i]) <=
                                 self.storage_assets[i].Emax[T_range] -
                                 self.storage_assets[i].E[t0_dt])
-            # minimum energy constraint
+            ## minimum energy constraint
             prob.add_constraint(self.dt_ems * Asum * (P_ES_ch[:,i] -
                                                   P_ES_dis[:,i]) >=
                                 self.storage_assets[i].Emin[T_range] -
@@ -1384,6 +1374,17 @@ class EnergySystem:
                                     P_ES_dis[t,i] * eff_opt)
                 prob.add_constraint(P_ES_ch[t,i] >= 0)
                 prob.add_constraint(P_ES_dis[t,i] >= 0)
+        
+        # EVSE energy storage constraints
+        for i in range(N_EVSE):
+            eff_opt = self.evse_assets[i]['eff_opt']
+            # maximum power constraint
+            prob.add_constraint(P_EVSE[:,i] <=
+                                self.evse_assets[i]['Pmax'])
+            # minimum power constraint
+            prob.add_constraint(P_EVSE[:,i] >= 0)
+            # minimum energy constraint P*dt >= ET-E0 where ET and E0 are timeseries
+            prob.add_constraint(self.dt_ems * Asum * P_EVSE[:,i] * eff_opt >= sum(self.evse_assets[i]['ET'] - self.evse_assets[i]['E0']))
 
         #import/export constraints
         for t in range(T_mpc):
@@ -1462,13 +1463,15 @@ class EnergySystem:
                 if int(bus_ph_index/3) not in (np.array\
                       (v_unconstrained_buses)-1):
                     prob.add_constraint(sum(A_vlim[bus_ph_index,i]\
-                                            *(P_ES[t,i])\
-                                            *1e3 for i in range(N_ES))\
+                                        *(P_ES[t,i])*1e3 for i in range(N_ES))\
+                                        - sum(A_vlim[bus_ph_index,i]\
+                                        *(P_EVSE[t,i])*1e3 for i in range(N_EVSE))\
                                         + b_vlim[bus_ph_index] <=\
                                         v_abs_max_vec[bus_ph_index])
                     prob.add_constraint(sum(A_vlim[bus_ph_index,i]\
-                                            *(P_ES[t,i])\
-                                            *1e3 for i in range(N_ES))\
+                                        *(P_ES[t,i])*1e3 for i in range(N_ES))\
+                                        - sum(A_vlim[bus_ph_index,i]\
+                                        *(P_EVSE[t,i])*1e3 for i in range(N_EVSE))\
                                         + b_vlim[bus_ph_index] >=\
                                         v_abs_min_vec[bus_ph_index])
 
@@ -1483,9 +1486,8 @@ class EnergySystem:
                                                    Jabs_dPQdel_list[line_ij],\
                                                    G_del_ES_PQ)
                     for ph in range(N_phases):
-                        prob.add_constraint(sum(A_line[ph,i]\
-                                                * P_ES[t,i]\
-                                                * 1e3 for i in range(N_ES))\
+                        prob.add_constraint(sum(A_line[ph,i] * P_ES[t,i]*1e3 for i in range(N_ES))\
+                                           - sum(A_line[ph,i] *P_EVSE[t,i]*1e3 for i in range(N_EVSE))\
                                            + network_t.\
                                            Jabs_I0_list[line_ij][ph] <=\
                                            iabs_max_line_ij[ph])

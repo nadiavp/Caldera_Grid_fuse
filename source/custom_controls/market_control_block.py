@@ -11,6 +11,8 @@ from market_system.DSS_info_extraction import dssConvert
 import pickle
 import json
 import helics as h
+import numpy as np
+import pandas as pd
 import logging
 logger = logging.getLogger(__name__)
 
@@ -46,13 +48,15 @@ class LPMarketController():
         self.prices_export = []
         self.demand_charge = [] 
         self.nondispatch_assets = []
+        self.evse_assets = [] # filled in the setup function
         #  this controller also requires a network
 
 
 
-    def setup_market_controller(self, prices_export, demand_charge, Pmax_market=1000000, Pmin_market=-100000):       
+    def setup_market_controller(self, prices_export, demand_charge, Pmax_market=1000000, Pmin_market=-100000, ce_file='inputs/CE_Sep_Shellbank_22700_24hr.csv', pev_file='inputs/EV_inputs.csv', evse_types_file='inputs/EVSE_inputs.csv'):       
         hs = self.horizon_sec
         ts = self.timestep_sec
+        n_timesteps = int(hs/ts)
         if not isinstance(Pmax_market, list):
             Pmax_market = [Pmax_market]*int(hs/ts)
         if not isinstance(Pmin_market, list):
@@ -69,9 +73,64 @@ class LPMarketController():
             prices_import = [[0.1]]* int(24*3600/self.timestep_sec) #[]
 
         # pull lists of non-dispatchable and dispatchable assets from opendss model
-        storage_assets = self.stationary_storage_df
-        self.storage_assets = storage_assets
-        evse_assets = self.evse_df
+
+        # create an evse storage asset for each charge event with
+        # timeseries and Emin and Emax which dictate if the vehicle is plugged
+        # and the end state of charge
+        evse_types = pd.read_csv(evse_types_file)
+        evse_assets = self.evse_df#self.stationary_storage_df
+        n_evse = len(self.evse_df['SE_id'])
+        evse_assets['Emax'] = [0]*n_evse # assume no evs at station until updated with charge events
+        evse_assets['Emin'] = [0]*n_evse
+        evse_assets['Pmax'] = [0]*n_evse
+        evse_assets['Pmin'] = [0]*n_evse
+        evse_assets['Pmax_abs'] = max(evse_assets['Pmax'])*n_evse
+        evse_assets['E0'] = .1*evse_assets['Emax']
+        #TODO: add integration of charge event limits
+        final_energy = np.zeros(n_timesteps)
+        final_energy[-1] = 70 #assume wanting full charge for 70kWh battery
+        evse_assets['ET'] = [final_energy]*n_evse # this becomes a list
+        evse_assets['dt_ems'] = [ts/3600]*n_evse
+        evse_assets['T_ems'] = [24*12]*n_evse
+        evse_assets['Pnet'] = [np.zeros(n_timesteps)]*n_evse
+        evse_assets['Qnet'] = [np.zeros(n_timesteps)]*n_evse
+        evse_assets['c_deg_lin'] = [0]*n_evse
+        evse_assets['eff'] = [np.ones(100)]*n_evse
+        evse_assets['eff_opt'] = [1]*n_evse
+        evse_assets['bus_id'] = evse_assets['node_id']
+        # read in the EV specs to get the battery sizes
+        ev_df = pd.read_csv(pev_file)
+        # first read in the CE (charge event) file and determine the start and stop times 
+        # as well as the final energy needed
+        ce_df = pd.read_csv(ce_file)
+        # iterate through SE (supply equipment) and get the list of CE for it
+        se_iter = 0
+        for se_id in evse_assets['SE_id']:
+            ce_at_se = ce_df[ce_df['SE_id']==se_id]
+            se_type = evse_assets[evse_assets['SE_id']==se_id]['SE_type'].item()
+            max_evse = evse_types[evse_types['EVSE_type']==se_type]['AC/DC_power_limit_kW'].item()
+            evse_assets['Pmax'][se_iter] = max_evse
+            # assume there is more than one
+            pev_battery_sizes = [0]
+            for _, ce_i in ce_at_se.iterrows():
+                ev_battery_size = ev_df[ev_df['EV_type'] == ce_i['pev_type']]['usable_battery_size_kWh'].item()
+                pev_battery_sizes.append(ev_battery_size)
+                start_charge = ce_i['soc_i']*ev_battery_size
+                end_charge = ce_i['soc_f']*ev_battery_size
+                start_timestep = int(np.floor(ce_i['start_time'] * 3600 / ts)) # convert from hours to timestep index
+                end_timestep = int(np.floor(ce_i['end_time_chg'] * 3600 / ts))
+                # figure out the minimum you need to charge
+                # if your charge session ends beyond the horizon, calc the actual end charge energy for end of horizon
+                if end_timestep >= n_timesteps:
+                    end_charge = max(0, end_charge - (end_timestep - n_timesteps) * max_evse)
+                    end_timestep = n_timesteps - 1
+                evse_assets[evse_assets['SE_id']==se_id]['E0'][start_timestep:end_timestep] = start_charge
+                evse_assets[evse_assets['SE_id']==se_id]['ET'][end_timestep] = end_charge
+            evse_assets[evse_assets['SE_id']==se_id]['Emax'] = max(pev_battery_sizes)
+            se_iter += 1
+
+        self.evse_assets = evse_assets
+        #evse_assets = self.evse_df
         # in opendss all nondispatchable assets are loadshapes, so just reformat the load_df a little
         nondispatch_assets = self.load_df
         nondispatch_assets['Pnet_pred'] = nondispatch_assets['P']
@@ -84,6 +143,8 @@ class LPMarketController():
         #                                   T=hs, Pnet_pred = 0,
         #                                   Qnet_pred = 0)
         #    nondispatch_assets.append(ND_load_ph)
+
+        # TODO: find E_T for each charging station according to charging vehicles.
         self.nondispatch_assets = nondispatch_assets
         nda_list = nondispatch_assets.to_dict('records')
         for nda in nda_list:
@@ -93,7 +154,7 @@ class LPMarketController():
         self.network = Network_3ph(self.feeder_name)
         market = Market(bus_id_market, prices_export, prices_import, demand_charge, Pmax_market, Pmin_market, ts, hs)
         self.market = market
-        energy_system = EnergySystem(storage_assets, nda_list, self.network, market, ts, hs, ts, hs)
+        energy_system = EnergySystem(nda_list, self.network, market, ts, hs, ts, hs, evse_assets=self.evse_assets)
         self.energy_system = energy_system
 
 
@@ -144,10 +205,14 @@ class LPMarketController():
         #PF_network_res = EMS_output['PF_network_res']
         P_import_ems = EMS_output['P_import_ems']
         P_export_ems = EMS_output['P_export_ems']
-        #P_ES_ems = EMS_output['P_ES_ems']
+        P_ES_ems = EMS_output['P_ES_ems']
         #P_demand_ems = EMS_output['P_demand_ems']  
-        for load_name in self.load_df.keys():
-            ev_control_setpoints[load_name] = P_import_ems[load_name] - P_export_ems[load_name]
+        i_es = 0
+        for bus_id in self.evse_df['node_id'].values:
+            ev_control_setpoints[bus_id] = P_ES_ems[i_es]#P_import_ems[load_name] - P_export_ems[load_name]
+            i_es = i_es+1
+
+        print(EMS_output.keys())
 
         self.control_setpoints = ev_control_setpoints
         return ev_control_setpoints
