@@ -1376,15 +1376,15 @@ class EnergySystem:
                 prob.add_constraint(P_ES_dis[t,i] >= 0)
         
         # EVSE energy storage constraints
-        for i in range(N_EVSE):
-            eff_opt = self.evse_assets[i]['eff_opt']
+        for i, evse_i in self.evse_assets.iterrows():
+            eff_opt = evse_i['eff_opt']
             # maximum power constraint
             prob.add_constraint(P_EVSE[:,i] <=
-                                self.evse_assets[i]['Pmax'])
+                                evse_i['Pmax'])
             # minimum power constraint
             prob.add_constraint(P_EVSE[:,i] >= 0)
             # minimum energy constraint P*dt >= ET-E0 where ET and E0 are timeseries
-            prob.add_constraint(self.dt_ems * Asum * P_EVSE[:,i] * eff_opt >= sum(self.evse_assets[i]['ET'] - self.evse_assets[i]['E0']))
+            prob.add_constraint(self.dt_ems * Asum * P_EVSE[:,i] * eff_opt >= sum(evse_i['ET'] - evse_i['E0']))
 
         #import/export constraints
         for t in range(T_mpc):
