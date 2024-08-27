@@ -124,9 +124,9 @@ class LPMarketController():
                 if end_timestep >= n_timesteps:
                     end_charge = max(0, end_charge - (end_timestep - n_timesteps) * max_evse)
                     end_timestep = n_timesteps - 1
-                evse_assets[evse_assets['SE_id']==se_id]['E0'][start_timestep:end_timestep] = start_charge
-                evse_assets[evse_assets['SE_id']==se_id]['ET'][end_timestep] = end_charge
-            evse_assets[evse_assets['SE_id']==se_id]['Emax'] = max(pev_battery_sizes)
+                evse_assets.loc[evse_assets['SE_id']==se_id,'E0'][start_timestep:end_timestep] = start_charge
+                evse_assets.loc[evse_assets['SE_id']==se_id,'ET'][end_timestep] = end_charge
+            evse_assets.loc[evse_assets['SE_id']==se_id,'Emax'] = max(pev_battery_sizes)
             se_iter += 1
 
         self.evse_assets = evse_assets[evse_assets['Emax']>0] # only load the ones with vehicles at them to save on variables/constraints
@@ -148,7 +148,8 @@ class LPMarketController():
         self.nondispatch_assets = nondispatch_assets
         nda_list = nondispatch_assets.to_dict('records')
         for nda in nda_list:
-            nda['number'] = self.bus_df[self.bus_df['name']==nda['bus_id']]['number'][0]
+            if isinstance(nda['bus_id'], str):
+                nda['number'] = self.bus_df[self.bus_df['name']==nda['bus_id']]['number'][0]
         bus_id_market = 0 # all buses have the same market, so this identifier can be 0
 
         self.network = Network_3ph(self.feeder_name)
@@ -170,13 +171,13 @@ class LPMarketController():
     
         #non_disp_loads = json.loads(h.helicsInputGetString(self.subscriptions[2]))
         # update the non dispatchable asset loads
-        self.nondispatch_assets['Pnet'] = self.nondispatch_assets['Pnet_pred']
-        self.nondispatch_assets['Qnet'] = self.nondispatch_assets['Qnet_pred']
+        self.nondispatch_assets.loc['Pnet'] = self.nondispatch_assets['Pnet_pred']
+        self.nondispatch_assets.loc['Qnet'] = self.nondispatch_assets['Qnet_pred']
         if OpenDSS_message_types.get_basenetloads in DSS_state_info_dict.keys():
             non_disp_loads = DSS_state_info_dict[OpenDSS_message_types.get_basenetloads]
             for busname_i in non_disp_loads.keys():
-                self.nondispatch_assets[self.nondispatch_assets['bus_id']==busname_i]['Pnet_pred'] = non_disp_loads[busname_i][0]
-                self.nondispatch_assets[self.nondispatch_assets['bus_id']==busname_i]['Qnet_pred'] = non_disp_loads[busname_i][1]
+                self.nondispatch_assets.loc[self.nondispatch_assets['bus_id']==busname_i,'Pnet_pred'] = non_disp_loads[busname_i][0]
+                self.nondispatch_assets.loc[self.nondispatch_assets['bus_id']==busname_i,'Qnet_pred'] = non_disp_loads[busname_i][1]
         #for i_nda in range(len(self.nondispatch_assets)):
         #    busname_i = self.nondispatch_assets.loc[i_nda,'bus_id']
         #    self.nondispatch_assets.loc[i_nda, 'Pnet_pred'] = self.nondispatch_assets[i_nda, 'Pnet']
@@ -192,6 +193,7 @@ class LPMarketController():
 
         i_line_unconst_list = list(range(network.N_lines))   
         v_bus_unconst_list = list(range((network.N_phases)*(network.N_buses-1))) # no voltage constraints 
+        #print(f'energy_system.evse_assets in market_control_block {self.energy_system.evse_assets}')
         EMS_output = self.energy_system.simulate_network_3phPF('3ph',\
                                         i_unconstrained_lines=\
                                         i_line_unconst_list,\
@@ -205,12 +207,13 @@ class LPMarketController():
         #PF_network_res = EMS_output['PF_network_res']
         P_import_ems = EMS_output['P_import_ems']
         P_export_ems = EMS_output['P_export_ems']
-        P_ES_ems = EMS_output['P_ES_ems']
+        P_EVSE_ems = EMS_output['P_EVSE_ems']
+        #print(f'P_EVSE_ems line 209 market_control_block: {P_EVSE_ems}')
         #P_demand_ems = EMS_output['P_demand_ems']  
         i_es = 0
         for SE_id in self.evse_assets['SE_id'].values:
-            ev_control_setpoints[SE_id] = P_ES_ems[i_es]#P_import_ems[load_name] - P_export_ems[load_name]
+            ev_control_setpoints[SE_id] = P_EVSE_ems[i_es]#P_import_ems[load_name] - P_export_ems[load_name]
             i_es = i_es+1
-
+        #print(f'updating setpoints line 219 market_control_block {ev_control_setpoints}')
         self.control_setpoints = ev_control_setpoints
         return ev_control_setpoints

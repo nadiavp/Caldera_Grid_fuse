@@ -654,6 +654,7 @@ class EnergySystem:
         P_import_ems = output_ems['P_import_val']
         P_export_ems = output_ems['P_export_val']
         P_ES_ems = output_ems['P_ES_val']
+        P_EVSE_ems = output_ems['P_EVSE_val']
         P_demand_ems = output_ems['P_demand_val']
         #convert P_EV signals to system time-series scale
         N_ESs = len(self.storage_assets)
@@ -722,6 +723,7 @@ class EnergySystem:
 
         return {'PF_network_res' :PF_network_res,\
                 'P_ES_ems':P_ES_ems,\
+                'P_EVSE_ems':P_EVSE_ems,\
                 'P_import_ems':P_import_ems,\
                 'P_export_ems':P_export_ems,\
                 'P_demand_ems':P_demand_ems}
@@ -1562,10 +1564,15 @@ class EnergySystem:
             P_ES_val = np.matrix(P_ES.value)
         else:
             P_ES_val = []
+        if N_EVSE>0:
+            P_EVSE_val = np.matrix(P_EVSE.value)
+        else:
+            P_EVSE_val = []
         P_import_val = np.matrix(P_import.value)
         P_export_val = np.matrix(P_export.value)
         P_demand_val = np.matrix(P_demand)
         return {'P_ES_val':P_ES_val,
+                'P_EVSE_val':P_EVSE_val,
                 'P_import_val':P_import_val,
                 'P_export_val':P_export_val,
                 'P_demand_val':P_demand_val,

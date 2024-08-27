@@ -497,6 +497,10 @@ def dssConvert(feeder,dssName, save_model=True):
                      Ynet[i,j] = Y[ phase_index_trans[i], phase_index_trans[j] ]
             
         
+        # filter for nans
+        load_df = load_df[~pd.isnull(load_df['bus_name'])]
+
+
         if save_model:
             if not os.path.exists(dir0):
                 os.makedirs(dir0)
