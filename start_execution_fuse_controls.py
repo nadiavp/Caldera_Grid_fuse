@@ -298,7 +298,7 @@ if __name__ == '__main__':
     horizon_sec = 3600*24/2 #(end_simulation_unix_time - start_simulation_unix_time)
     print(f'optimization horizon is {horizon_sec}')
     CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_Sep_Shellbank_22700_24hr.csv',
-        name='market_control', helics_config_path=json_config_file_name, timestep_sec=300, feeder_name='shellbank', horizon_sec=horizon_sec)
+        name='market_control', helics_config_path=json_config_file_name, timestep_sec=60*15, feeder_name='shellbank', horizon_sec=horizon_sec)
     p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='market_control_federate')
     processes.append(p)
 

@@ -24,7 +24,7 @@ from global_aux import OpenDSS_message_types
 #####
 
 class LPMarketController():
-    def __init__(self, name='greedy', helics_config_path='', timestep_sec=60*5, feeder_name='ieee_34', dss_file_name='Main.dss', horizon_sec=24*60*60, evse_df=[], stationary_storage_df=[]):
+    def __init__(self, name='greedy', helics_config_path='', timestep_sec=60*15, feeder_name='ieee_34', dss_file_name='Main.dss', horizon_sec=24*60*60, evse_df=[], stationary_storage_df=[]):
         # add important params here
         self.name = name
         self.dss_file_name = dss_file_name
@@ -129,7 +129,7 @@ class LPMarketController():
             evse_assets[evse_assets['SE_id']==se_id]['Emax'] = max(pev_battery_sizes)
             se_iter += 1
 
-        self.evse_assets = evse_assets
+        self.evse_assets = evse_assets[evse_assets['Emax']>0] # only load the ones with vehicles at them to save on variables/constraints
         #evse_assets = self.evse_df
         # in opendss all nondispatchable assets are loadshapes, so just reformat the load_df a little
         nondispatch_assets = self.load_df
@@ -167,16 +167,16 @@ class LPMarketController():
         # first get the updated grid status
         #voltages = json.loads(h.helicsInputGetString(self.subscriptions[0]))
         #currents = json.loads(h.helicsInputGetString(self.subscriptions[1]))
-        
-        if OpenDSS_message_types.get_basenetloads in DSS_state_info_dict.keys():
-            non_disp_loads = DSS_state_info_dict[OpenDSS_message_types.get_basenetloads]
+    
         #non_disp_loads = json.loads(h.helicsInputGetString(self.subscriptions[2]))
         # update the non dispatchable asset loads
         self.nondispatch_assets['Pnet'] = self.nondispatch_assets['Pnet_pred']
         self.nondispatch_assets['Qnet'] = self.nondispatch_assets['Qnet_pred']
-        for busname_i in non_disp_loads.keys():
-            self.nondispatch_assets[self.nondispatch_assets['bus_id']==busname_i]['Pnet_pred'] = non_disp_loads[busname_i][0]
-            self.nondispatch_assets[self.nondispatch_assets['bus_id']==busname_i]['Qnet_pred'] = non_disp_loads[busname_i][1]
+        if OpenDSS_message_types.get_basenetloads in DSS_state_info_dict.keys():
+            non_disp_loads = DSS_state_info_dict[OpenDSS_message_types.get_basenetloads]
+            for busname_i in non_disp_loads.keys():
+                self.nondispatch_assets[self.nondispatch_assets['bus_id']==busname_i]['Pnet_pred'] = non_disp_loads[busname_i][0]
+                self.nondispatch_assets[self.nondispatch_assets['bus_id']==busname_i]['Qnet_pred'] = non_disp_loads[busname_i][1]
         #for i_nda in range(len(self.nondispatch_assets)):
         #    busname_i = self.nondispatch_assets.loc[i_nda,'bus_id']
         #    self.nondispatch_assets.loc[i_nda, 'Pnet_pred'] = self.nondispatch_assets[i_nda, 'Pnet']
@@ -208,11 +208,9 @@ class LPMarketController():
         P_ES_ems = EMS_output['P_ES_ems']
         #P_demand_ems = EMS_output['P_demand_ems']  
         i_es = 0
-        for bus_id in self.evse_df['node_id'].values:
-            ev_control_setpoints[bus_id] = P_ES_ems[i_es]#P_import_ems[load_name] - P_export_ems[load_name]
+        for SE_id in self.evse_assets['SE_id'].values:
+            ev_control_setpoints[SE_id] = P_ES_ems[i_es]#P_import_ems[load_name] - P_export_ems[load_name]
             i_es = i_es+1
-
-        print(EMS_output.keys())
 
         self.control_setpoints = ev_control_setpoints
         return ev_control_setpoints

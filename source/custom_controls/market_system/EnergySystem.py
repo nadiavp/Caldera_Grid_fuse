@@ -1267,6 +1267,7 @@ class EnergySystem:
 
         # energy storage system input powers
         if N_ES>0:
+            print(f'adding {N_ES}x4 energy storage variables')
             P_ES = prob.add_variable('P_ES',
                                     (T_mpc,N_ES), vtype='continuous')
             # energy storage system input powers
@@ -1279,6 +1280,7 @@ class EnergySystem:
             E_T_min = prob.add_variable('E_T_min',
                                     N_ES, vtype='continuous')
         if N_EVSE>0:
+            print(f'adding {N_EVSE} EVSE variables')
             P_EVSE = prob.add_variable('P_EVSE', 
                                     (T_mpc, N_EVSE), vtype='continuous')
         # (positive) net power imports
@@ -1299,7 +1301,7 @@ class EnergySystem:
         P_lin_buses = np.zeros([T_mpc,N_buses,N_phases])
         Q_lin_buses = np.zeros([T_mpc,N_buses,N_phases])
         for t in range(T_mpc):
-            if t == 0:
+            if 'network_t' not in self.__dict__.keys():
                 #Setup linear power flow model:
                 for i in range(N_nondispatch):
                     #bus_id = self.nondispatch_assets[i]['bus_id']
@@ -1333,6 +1335,9 @@ class EnergySystem:
                 # note that phases need to be 120degrees out for good results
                 print('running linear powerflow')
                 network_t.linear_pf()
+                self.network_t = network_t
+            else:
+                network_t = self.network_t
             PF_networks_lin.append(network_t)
 
         print('setting up constraints')
@@ -1343,37 +1348,36 @@ class EnergySystem:
         Asum = pic.new_param('Asum',np.tril(np.ones([T_mpc,T_mpc])))
 
         # energy storage asset constraints
-        for i in range(N_ES):
-            # maximum power constraint
-            prob.add_constraint(P_ES[:,i] <=
-                                self.storage_assets[i].Pmax[T_range])
-            # minimum power constraint
-            prob.add_constraint(P_ES[:,i] >=
-                                self.storage_assets[i].Pmin[T_range])
-            # maximum energy constraint
-            prob.add_constraint(self.dt_ems * Asum * (P_ES_ch[:,i] -
-                                                  P_ES_dis[:,i]) <=
-                                self.storage_assets[i].Emax[T_range] -
-                                self.storage_assets[i].E[t0_dt])
-            ## minimum energy constraint
-            prob.add_constraint(self.dt_ems * Asum * (P_ES_ch[:,i] -
-                                                  P_ES_dis[:,i]) >=
-                                self.storage_assets[i].Emin[T_range] -
-                                self.storage_assets[i].E[t0_dt])
-            # final energy constraint
-            prob.add_constraint(self.dt_ems * Asum[T_mpc-1,:] * (P_ES_ch[:,i] -
-                                P_ES_dis[:,i]) + E_T_min[i] >=
-                                self.storage_assets[i].ET -
-                                self.storage_assets[i].E[t0_dt])
-
-            eff_opt = self.storage_assets[i].eff_opt
-
-            #P_ES_ch & P_ES_dis dummy variables
-            for t in range(T_mpc):
-                prob.add_constraint(P_ES[t,i] == P_ES_ch[t,i]/eff_opt -
-                                    P_ES_dis[t,i] * eff_opt)
-                prob.add_constraint(P_ES_ch[t,i] >= 0)
-                prob.add_constraint(P_ES_dis[t,i] >= 0)
+        #for i in range(N_ES):
+        #    # maximum power constraint
+        #    prob.add_constraint(P_ES[:,i] <=
+        #                        self.storage_assets[i].Pmax[T_range])
+        #    # minimum power constraint
+        #    prob.add_constraint(P_ES[:,i] >=
+        #                        self.storage_assets[i].Pmin[T_range])
+        #    # maximum energy constraint
+        #    prob.add_constraint(self.dt_ems * Asum * (P_ES_ch[:,i] -
+        #                                          P_ES_dis[:,i]) <=
+        #                        self.storage_assets[i].Emax[T_range] -
+        #                        self.storage_assets[i].E[t0_dt])
+        #    ## minimum energy constraint
+        #    prob.add_constraint(self.dt_ems * Asum * (P_ES_ch[:,i] -
+        #                                          P_ES_dis[:,i]) >=
+        #                        self.storage_assets[i].Emin[T_range] -
+        #                        self.storage_assets[i].E[t0_dt])
+        #    # final energy constraint
+        #    prob.add_constraint(self.dt_ems * Asum[T_mpc-1,:] * (P_ES_ch[:,i] -
+        #                        P_ES_dis[:,i]) + E_T_min[i] >=
+        #                        self.storage_assets[i].ET -
+        #                        self.storage_assets[i].E[t0_dt])
+        #
+        #    eff_opt = self.storage_assets[i].eff_opt
+        #    #P_ES_ch & P_ES_dis dummy variables
+        #    for t in range(T_mpc):
+        #        prob.add_constraint(P_ES[t,i] == P_ES_ch[t,i]/eff_opt -
+        #                            P_ES_dis[t,i] * eff_opt)
+        #        prob.add_constraint(P_ES_ch[t,i] >= 0)
+        #        prob.add_constraint(P_ES_dis[t,i] >= 0)
         
         # EVSE energy storage constraints
         for i, evse_i in self.evse_assets.iterrows():
@@ -1453,66 +1457,66 @@ class EnergySystem:
                                 + b_Pslack)/1e3)
 
             # Voltage magnitude constraints
-            A_vlim = np.matmul(network_t.K_wye,G_wye_ES_PQ)\
-                    + np.matmul(network_t.K_del,G_del_ES_PQ)
-            b_vlim = network_t.v_lin_abs_res
-            #get max/min bus voltages, removing slack and reshaping in a column
-            v_abs_max_vec = network_t.v_abs_max[1:,:].reshape(-1,1)
-            v_abs_min_vec = network_t.v_abs_min[1:,:].reshape(-1,1)
-            for bus_ph_index in range(0,N_phases*(N_buses-1)):
-                if int(bus_ph_index/3) not in (np.array\
-                      (v_unconstrained_buses)-1):
-                    prob.add_constraint(sum(A_vlim[bus_ph_index,i]\
-                                        *(P_ES[t,i])*1e3 for i in range(N_ES))\
-                                        - sum(A_vlim[bus_ph_index,i]\
-                                        *(P_EVSE[t,i])*1e3 for i in range(N_EVSE))\
-                                        + b_vlim[bus_ph_index] <=\
-                                        v_abs_max_vec[bus_ph_index])
-                    prob.add_constraint(sum(A_vlim[bus_ph_index,i]\
-                                        *(P_ES[t,i])*1e3 for i in range(N_ES))\
-                                        - sum(A_vlim[bus_ph_index,i]\
-                                        *(P_EVSE[t,i])*1e3 for i in range(N_EVSE))\
-                                        + b_vlim[bus_ph_index] >=\
-                                        v_abs_min_vec[bus_ph_index])
+            #A_vlim = np.matmul(network_t.K_wye,G_wye_ES_PQ)\
+            #        + np.matmul(network_t.K_del,G_del_ES_PQ)
+            #b_vlim = network_t.v_lin_abs_res
+            ##get max/min bus voltages, removing slack and reshaping in a column
+            #v_abs_max_vec = network_t.v_abs_max[1:,:].reshape(-1,1)
+            #v_abs_min_vec = network_t.v_abs_min[1:,:].reshape(-1,1)
+            #for bus_ph_index in range(0,N_phases*(N_buses-1)):
+            #    if int(bus_ph_index/3) not in (np.array\
+            #          (v_unconstrained_buses)-1):
+            #        prob.add_constraint(sum(A_vlim[bus_ph_index,i]\
+            #                            *(P_ES[t,i])*1e3 for i in range(N_ES))\
+            #                            - sum(A_vlim[bus_ph_index,i]\
+            #                            *(P_EVSE[t,i])*1e3 for i in range(N_EVSE))\
+            #                            + b_vlim[bus_ph_index] <=\
+            #                            v_abs_max_vec[bus_ph_index])
+            #        prob.add_constraint(sum(A_vlim[bus_ph_index,i]\
+            #                            *(P_ES[t,i])*1e3 for i in range(N_ES))\
+            #                            - sum(A_vlim[bus_ph_index,i]\
+            #                            *(P_EVSE[t,i])*1e3 for i in range(N_EVSE))\
+            #                            + b_vlim[bus_ph_index] >=\
+            #                            v_abs_min_vec[bus_ph_index])
 
-            # Line current magnitude constraints:
-            for line_ij in range(network_t.N_lines):
-                if line_ij not in i_unconstrained_lines:
-                    iabs_max_line_ij = network_t.i_abs_max[line_ij,:] #3 phases
-                    # maximum current magnitude constraint
-                    A_line = np.matmul(network_t.Jabs_dPQwye_list[line_ij],\
-                                       G_wye_ES_PQ)\
-                                       + np.matmul(network_t.\
-                                                   Jabs_dPQdel_list[line_ij],\
-                                                   G_del_ES_PQ)
-                    for ph in range(N_phases):
-                        prob.add_constraint(sum(A_line[ph,i] * P_ES[t,i]*1e3 for i in range(N_ES))\
-                                           - sum(A_line[ph,i] *P_EVSE[t,i]*1e3 for i in range(N_EVSE))\
-                                           + network_t.\
-                                           Jabs_I0_list[line_ij][ph] <=\
-                                           iabs_max_line_ij[ph])
-       #if FFR energy constraints
-        if self.market.FR_window is not None:
-            FR_window = self.market.FR_window
-            FR_SoC_max = self.market.FR_SOC_max
-            FR_SoC_min = self.market.FR_SOC_min
-            for t in range(len(T_mpc)):
-                if FR_window[t] ==1:
-                    for i in range(N_ES):
-                        # final energy constraint
-                        prob.add_constraint((self.dt_ems
-                                             * Asum[t, :]
-                                             * P_ES[:,i])\
-                                            <= ((FR_SoC_max
-                                                * self.storage_assets[i].Emax)
-                                           - self.storage_assets[i].E[t0_dt]))
-                        # final energy constraint
-                        prob.add_constraint((self.dt_ems
-                                             * Asum[t,:]
-                                             * P_ES[:,i])\
-                                            >= ((FR_SoC_min
-                                                * self.storage_assets[i].Emax)
-                                           - self.storage_assets[i].E[t0_dt]))
+            ## Line current magnitude constraints:
+            #for line_ij in range(network_t.N_lines):
+            #    if line_ij not in i_unconstrained_lines:
+            #        iabs_max_line_ij = network_t.i_abs_max[line_ij,:] #3 phases
+            #        # maximum current magnitude constraint
+            #        A_line = np.matmul(network_t.Jabs_dPQwye_list[line_ij],\
+            #                           G_wye_ES_PQ)\
+            #                           + np.matmul(network_t.\
+            #                                       Jabs_dPQdel_list[line_ij],\
+            #                                       G_del_ES_PQ)
+            #        for ph in range(N_phases):
+            #            prob.add_constraint(sum(A_line[ph,i] * P_ES[t,i]*1e3 for i in range(N_ES))\
+            #                               - sum(A_line[ph,i] *P_EVSE[t,i]*1e3 for i in range(N_EVSE))\
+            #                               + network_t.\
+            #                               Jabs_I0_list[line_ij][ph] <=\
+            #                               iabs_max_line_ij[ph])
+        #if FFR energy constraints
+        #if self.market.FR_window is not None:
+        #    FR_window = self.market.FR_window
+        #    FR_SoC_max = self.market.FR_SOC_max
+        #    FR_SoC_min = self.market.FR_SOC_min
+        #    for t in range(len(T_mpc)):
+        #        if FR_window[t] ==1:
+        #            for i in range(N_ES):
+        #                # final energy constraint
+        #                prob.add_constraint((self.dt_ems
+        #                                     * Asum[t, :]
+        #                                     * P_ES[:,i])\
+        #                                    <= ((FR_SoC_max
+        #                                        * self.storage_assets[i].Emax)
+        #                                   - self.storage_assets[i].E[t0_dt]))
+        #                # final energy constraint
+        #                prob.add_constraint((self.dt_ems
+        #                                     * Asum[t,:]
+        #                                     * P_ES[:,i])\
+        #                                    >= ((FR_SoC_min
+        #                                        * self.storage_assets[i].Emax)
+        #                                   - self.storage_assets[i].E[t0_dt]))
 
         print('set up objective function')
         #######################################

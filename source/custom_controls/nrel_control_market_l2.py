@@ -122,8 +122,20 @@ class market_control(typeB_control):
         #DSS_state_info_dict = get_messages_to_request_state_info_from_OpenDSS(self, federate_time)
 
         ev_control_setpoints = self.market.solve(DSS_state_info_dict)
+        print(f'nrel_control_market_l2 line 125, updated evse setpoints to {ev_control_setpoints}')
+        PQ_setpoints = []
+        for SE_id in ev_control_setpoints.keys():
+            X = SE_setpoint()
+            X.SE_id = SE_id
+            X.PkW = ev_control_setpoints[SE_id]
+            X.QkVAR = 0#Q_kVAR
+            PQ_setpoints.append(X)
 
-        return ev_control_setpoints
+        Caldera_control_info_dict = {}
+        if len(PQ_setpoints) > 0:
+            Caldera_control_info_dict[Caldera_message_types.set_pev_charging_PQ] = PQ_setpoints
+
+        return Caldera_control_info_dict, DSS_state_info_dict, ev_control_setpoints
 
 
 
