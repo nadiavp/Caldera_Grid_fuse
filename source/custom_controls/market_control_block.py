@@ -88,7 +88,7 @@ class LPMarketController():
         evse_assets['E0'] = .1*evse_assets['Emax']
         #TODO: add integration of charge event limits
         final_energy = np.zeros(n_timesteps)
-        final_energy[-1] = 70 #assume wanting full charge for 70kWh battery
+        #final_energy[-1] = 70 #assume wanting full charge for 70kWh battery
         evse_assets['ET'] = [final_energy]*n_evse # this becomes a list
         evse_assets['dt_ems'] = [ts/3600]*n_evse
         evse_assets['T_ems'] = [24*12]*n_evse
@@ -212,7 +212,8 @@ class LPMarketController():
         #P_demand_ems = EMS_output['P_demand_ems']  
         i_es = 0
         for SE_id in self.evse_assets['SE_id'].values:
-            ev_control_setpoints[SE_id] = P_EVSE_ems[i_es]#P_import_ems[load_name] - P_export_ems[load_name]
+            # take the first timestep in the horizon opt
+            ev_control_setpoints[SE_id] = P_EVSE_ems[0,i_es]#P_import_ems[load_name] - P_export_ems[load_name]
             i_es = i_es+1
         #print(f'updating setpoints line 219 market_control_block {ev_control_setpoints}')
         self.control_setpoints = ev_control_setpoints

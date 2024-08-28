@@ -1382,17 +1382,23 @@ class EnergySystem:
         #        prob.add_constraint(P_ES_dis[t,i] >= 0)
         
         # EVSE energy storage constraints
+        print(f'adding evse constraints')
+        prob.add_constraint(P_EVSE <= np.ones((T_mpc,1)) * np.array(self.evse_assets['Pmax']))
+        prob.add_constraint(P_EVSE >= np.zeros((T_mpc, N_EVSE)))
+        # c * TxN' * Tx1 .* Nx1  -> Nx1 >= NxT * Tx1 -> Nx1
+        #prob.add_constraint(self.dt_ems * np.matmul(P_EVSE,np.ones((T_mpc,1))) *np.array(self.evse_assets['eff_opt']).reshape((N_EVSE,1)) >= np.matmul((np.array(self.evse_assets['ET']) - np.array(self.evse_assets['E0'])),np.ones((T_mpc,1))))
         for i, evse_i in self.evse_assets.iterrows():
             eff_opt = evse_i['eff_opt']
             # maximum power constraint
-            prob.add_constraint(P_EVSE[:,i] <=
-                                evse_i['Pmax'])
+            #prob.add_constraint(P_EVSE[:,i] <=
+            #                    evse_i['Pmax'])
             # minimum power constraint
-            prob.add_constraint(P_EVSE[:,i] >= 0)
+            #prob.add_constraint(P_EVSE[:,i] >= 0)
             # minimum energy constraint P*dt >= ET-E0 where ET and E0 are timeseries
-            prob.add_constraint(self.dt_ems * Asum * P_EVSE[:,i] * eff_opt >= sum(evse_i['ET'] - evse_i['E0']))
+            prob.add_constraint(sum(self.dt_ems * P_EVSE[:,i]) * eff_opt >= sum(evse_i['ET'] - evse_i['E0']))
 
         #import/export constraints
+        print('adding import export constraints')
         for t in range(T_mpc):
             # maximum import constraint
             prob.add_constraint(P_import[t] <= self.market.Pmax[t0 + t])
@@ -1409,6 +1415,7 @@ class EnergySystem:
             prob.add_constraint(P_max_demand  >= 0)
 
         # Network constraints
+        print('adding network constraints')
         for t in range(T_mpc):
             network_t = PF_networks_lin[t]
             # Note that linear power flow matricies are in units of W (not kW)
@@ -1418,18 +1425,18 @@ class EnergySystem:
             PQ0_del = np.concatenate((np.real(network_t.S_PQloads_del_res),\
                                       np.imag(network_t.S_PQloads_del_res)))\
                                       *1e3
-            A_Pslack = (np.matmul\
-                        (np.real(np.matmul\
-                                 (network_t.vs.T,\
-                                  np.matmul(np.conj(network_t.Ysn),\
-                                            np.conj(network_t.M_wye)))),\
-                                      G_wye_ES_PQ)\
-                         + np.matmul\
-                         (np.real(np.matmul\
-                                  (network_t.vs.T,\
-                                   np.matmul(np.conj(network_t.Ysn),\
-                                             np.conj(network_t.M_del)))),\
-                                      G_del_ES_PQ))
+            #A_Pslack = (np.matmul\
+            #            (np.real(np.matmul\
+            #                     (network_t.vs.T,\
+            #                      np.matmul(np.conj(network_t.Ysn),\
+            #                                np.conj(network_t.M_wye)))),\
+            #                          G_wye_ES_PQ)\
+            #             + np.matmul\
+            #             (np.real(np.matmul\
+            #                      (network_t.vs.T,\
+            #                       np.matmul(np.conj(network_t.Ysn),\
+            #                                 np.conj(network_t.M_del)))),\
+            #                          G_del_ES_PQ))
             b_Pslack =  np.real(np.matmul\
                                 (network_t.vs.T,\
                                  np.matmul(np.conj\
@@ -1453,10 +1460,9 @@ class EnergySystem:
                                              (network_t.Ysn),\
                                              np.conj(network_t.M0)))))
             # net import variables
-            prob.add_constraint(P_import[t]-P_export[t] ==\
-                                (np.sum(A_Pslack[i]*P_ES[t,i]\
-                                        *1e3 for i in range(N_ES))\
-                                + b_Pslack)/1e3)
+            prob.add_constraint(P_import[t]-P_export[t] == b_Pslack/1e3)
+            #(np.sum(A_Pslack[i]*P_ES[t,i]\
+            #*1e3 for i in range(N_ES))\
 
             # Voltage magnitude constraints
             #A_vlim = np.matmul(network_t.K_wye,G_wye_ES_PQ)\
