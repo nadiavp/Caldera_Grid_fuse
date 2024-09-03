@@ -55,8 +55,8 @@ def dssConvert(feeder,dssName, save_model=True):
         #saveModel = True
         #saveModel = False
 
-        dss.Command(f'Redirect {fn_ckt}') #DSSObj = win32com.client.Dispatch("OpenDSSEngine.DSS")
-        dss.Command('Set Controlmode=off') # turn off regs/cap banks
+        dss.run_command(f'Redirect {fn_ckt}') #DSSObj = win32com.client.Dispatch("OpenDSSEngine.DSS")
+        dss.run_command('Set Controlmode=off') # turn off regs/cap banks
         dss.Solution.Solve()#dss.Command('Solve')
         print('opendss engine started')
         #DSSText= DSSObj.Text
@@ -441,9 +441,9 @@ def dssConvert(feeder,dssName, save_model=True):
         '''
         #- disconnect vsources and loads
         #DSSText.Command='vsource.source.enabled = no'
-        dss.Command('vsource.source.enabled = no')
+        dss.run_command('vsource.source.enabled = no')
         #DSSText.Command='batchedit load..* enabled=no'
-        dss.Command('BatchEdit Load..* enabled=no')
+        dss.run_command('BatchEdit Load..* enabled=no')
         #- extract YMatrix
         #DSSText.Command='Solve'
         dss.Solution.Solve()
@@ -458,9 +458,9 @@ def dssConvert(feeder,dssName, save_model=True):
         #    Y[:, i] = Yres[:, 2*i] + 1j*Yres[:, 2*i + 1]
         #- reconnect vsources and loads
         #DSSText.Command='vsource.source.enabled = yes'
-        dss.Command('vsource.source.enabled = yes')
+        dss.run_command('vsource.source.enabled = yes')
         #DSSText.Command='batchedit load..* enabled=yes'
-        dss.Command('batchedit load.. enabled=yes')
+        dss.run_command('batchedit load.. enabled=yes')
         #- return to the previous solution   
         #DSSText.Command='Solve'
         dss.Solution.Solve()

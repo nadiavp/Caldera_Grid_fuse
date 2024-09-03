@@ -5,8 +5,10 @@ from Helics_Helper import send, receive, cleanup
 import json
 import os
 
-def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints, use_opendss, opendss_file_to_site_storage='../opendss/ieee34.dss'):
+def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints, use_opendss, dss_full_path): #'../opendss/Shellbank_22700/Master.dss'): # TODO
 
+    opendss_file_to_site_storage=dss_full_path
+    
     print_communication = False
     #=====================================
     #         Setup Helics

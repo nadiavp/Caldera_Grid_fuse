@@ -72,7 +72,8 @@ class open_dss_helper:
 
     def __init__(self, io_dir):
         self.io_dir = io_dir
-        self.dss_file_name = 'ieee34.dss'
+        self.dss_file_name = 'Master.dss' #'ieee34.dss'
+        self.feeder_name = 'Shellbank_22700'
 
     def get_request_list(self):
         return [input_datasets.baseLD_data_obj, input_datasets.all_caldera_node_names, input_datasets.HPSE_caldera_node_names]
@@ -87,7 +88,7 @@ class open_dss_helper:
         all_caldera_node_names = self.datasets_dict[input_datasets.all_caldera_node_names]
         HPSE_caldera_node_names = self.datasets_dict[input_datasets.HPSE_caldera_node_names]
         
-        self.dss_core = open_dss_core(self.io_dir, self.dss_file_name, baseLD_data_obj)
+        self.dss_core = open_dss_core(self.io_dir, self.dss_file_name, self.feeder_name, baseLD_data_obj)
         self.dss_Caldera = open_dss_Caldera(self.io_dir, all_caldera_node_names, HPSE_caldera_node_names)
         self.dss_external_control = open_dss_external_control()
         
@@ -104,7 +105,7 @@ class open_dss_helper:
         #----------------------------------------------------
         self.dss_logger = None
         if(is_successful):
-            self.dss_logger = open_dss_logger_A(self.io_dir, all_caldera_node_names, HPSE_caldera_node_names)
+            self.dss_logger = open_dss_logger_A(self.io_dir, self.feeder_name, all_caldera_node_names, HPSE_caldera_node_names)
 
         return is_successful
 
@@ -348,11 +349,12 @@ class open_dss_external_control:
 class open_dss_core:
     
 
-    def __init__(self, io_dir, dss_file_name, baseLD_data_obj):
+    def __init__(self, io_dir, dss_file_name, feedername, baseLD_data_obj):
         self.io_dir = io_dir
         self.output_path = self.io_dir.outputs_dir
         self.dss_file_name = dss_file_name
         self.feeder_load = non_pev_feeder_load(baseLD_data_obj)
+        self.feeder_name = feedername
         self.ref_feeder_kW = 1
     
     
@@ -367,7 +369,7 @@ class open_dss_core:
     def load_dss_file(self):
         is_successful = True
         
-        dss_filepath = os.path.join( self.io_dir.base_dir, 'opendss', self.dss_file_name )
+        dss_filepath = os.path.join( self.io_dir.base_dir, 'opendss', self.feeder_name, self.dss_file_name )
         opendss_input_file_exists = os.path.isfile(dss_filepath)
         
         #-----------------------
@@ -512,9 +514,9 @@ class open_dss_Caldera:
 
 class open_dss_logger_A:
 
-    def __init__(self, io_dir, all_caldera_node_names, HPSE_caldera_node_names):
+    def __init__(self, io_dir, feeder_name, all_caldera_node_names, HPSE_caldera_node_names):
         
-        node_voltages_to_log = ['810.2', '822.1', '826.2', '856.2', '864.1', '848.1', '848.2', '848.3', '840.1', '840.2', '840.3', '838.2', '890.1', '890.2', '890.3']
+        node_voltages_to_log = [] #'810.2', '822.1', '826.2', '856.2', '864.1', '848.1', '848.2', '848.3', '840.1', '840.2', '840.3', '838.2', '890.1', '890.2', '890.3']
         #node_pev_charging_to_log = ['810.2', '826.2', '856.2', '838.2']
         node_pev_charging_to_log = ['806.1','806', '854']
         
@@ -529,7 +531,14 @@ class open_dss_logger_A:
         for x in X:
             openDSS_node_names.add(x)
         
-        output_path = self.io_dir.outputs_dir
+        #output_path = self.io_dir.outputs_dir
+        output_folder_path = self.io_dir.outputs_dir
+        sc_path = os.path.join(output_folder_path, 'Day-ahead') #'uncontrolled') # TODO
+        if not os.path.exists(sc_path):
+            os.mkdir(sc_path)
+        output_path = os.path.join(sc_path, feeder_name)
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
         
         #--------------------------------------
         #           feeder_PQ.csv

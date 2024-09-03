@@ -61,7 +61,16 @@ parser.add_argument(
     '--ensure_pev_charge_needs_met_for_ext_control_strategy',
     help="Ensure PEV charge needs met for ext control strategy. Specify with True or False. Defaults to False.",
     required=False)
+
+#P added
+parser.add_argument(
+    '-dss_location',
+    '--dss_full_path',
+    help="full path for the Master dss file.",
+    required=False)
+    
 args = vars(parser.parse_args())
+
 
 # Check for a json inputs file.
 if args["json_inputs_file"] != None:
@@ -170,7 +179,7 @@ if __name__ == '__main__':
         print('use_opendss set to true')
     else:
         use_opendss = True #False
-        print('WARNING, not using opendss, this version returns 1.0p.u. voltage always')
+        # print('WARNING, not using opendss, this version returns 1.0p.u. voltage always')
         
     # Other options.
     epcnmfecs = args["ensure_pev_charge_needs_met_for_ext_control_strategy"]
@@ -182,6 +191,13 @@ if __name__ == '__main__':
     ensure_pev_charge_needs_met_for_ext_control_strategy = True
     #---------------------
     print(f'ensure_pev_charge_needs_met_for_ext_control_strategy: {ensure_pev_charge_needs_met_for_ext_control_strategy}')
+    
+    # The full path to Master dss file
+    if args["dss_full_path"] != None:
+        dss_full_path = args["dss_full_path"]
+    else:
+        dss_full_path = os.path.join(path_to_here, 'opendss', 'Shellbank_22700', 'Master.dss') # TODO
+    print('OpenDSS master file full path:', dss_full_path)
     
     start_simulation_unix_time = int(start_simulation_unix_time)
     end_simulation_unix_time = int(end_simulation_unix_time)
@@ -256,7 +272,7 @@ if __name__ == '__main__':
     
     # OpenDSS Federate
     json_config_file_name = 'OpenDSS.json'
-    p = Process(target=open_dss_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, use_opendss,), name="open_dss_federate")
+    p = Process(target=open_dss_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, use_opendss, dss_full_path,), name="open_dss_federate")
     processes.append(p)
 	
     #---------------------------
@@ -297,8 +313,10 @@ if __name__ == '__main__':
     json_config_file_name = 'control_strategy_market.json'
     horizon_sec = 3600*24/2 #(end_simulation_unix_time - start_simulation_unix_time)
     print(f'optimization horizon is {horizon_sec}')
-    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_Sep_Shellbank_22700_24hr.csv',
-        name='market_control', helics_config_path=json_config_file_name, timestep_sec=60*15, feeder_name='shellbank', horizon_sec=horizon_sec)
+    opendss_file_to_site_storage='../opendss/Shellbank_22700/Master.dss'
+    print(opendss_file_to_site_storage)
+    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_testing_until40park_SE_Sep_Shellbank_22700.csv', #SE_Sep_Shellbank_22700_24hr.csv',
+        name='market_control', helics_config_path=json_config_file_name, timestep_sec=60*15, feeder_name='Shellbank_22700', horizon_sec=horizon_sec) #
     p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='market_control_federate')
     processes.append(p)
 
