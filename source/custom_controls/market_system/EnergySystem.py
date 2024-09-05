@@ -607,7 +607,7 @@ class EnergySystem:
 
     def simulate_network_3phPF(self, ems_type = '3ph',
                                i_unconstrained_lines=[],
-                               v_unconstrained_buses = []):
+                               v_unconstrained_buses = [], t0=0):
         """
         Run the Energy Management System in open loop and simulate an IEEE 13
         bus network either copper plate or 3ph
@@ -643,7 +643,7 @@ class EnergySystem:
         #######################################
         ### STEP 1: solve the optimisation
         #######################################
-        t0 = 0
+        #t0 = 0
         if ems_type == 'copper_plate':
             output_ems = self.EMS_copper_plate_t0(t0)
         else:
@@ -1125,6 +1125,8 @@ class EnergySystem:
     # NEEDED FOR OXEMF EV CASE
     def EMS_3ph_linear_t0(self, t0, i_unconstrained_lines=[],
                           v_unconstrained_buses = []):
+
+        t0=0
         """
         Energy management system optimization assuming 3 phase linear network
         model for Model Predictive Control interval t0
@@ -1163,7 +1165,7 @@ class EnergySystem:
         prob = pic.Problem()
         t0_dt = int(t0*self.dt_ems/self.dt)
         T_mpc = int((self.T_ems-t0)/self.dt)
-        print(f'timestep is {t0_dt}, horizon is {T_mpc} or {self.T}')
+        #print(f'timestep is {t0_dt}, horizon is {T_mpc} or {self.T}')
         T_range = np.arange(t0,self.T_ems,int(self.dt_ems))
         N_buses = self.network.N_buses
         N_phases = self.network.N_phases
@@ -1389,13 +1391,15 @@ class EnergySystem:
         #prob.add_constraint(self.dt_ems * np.matmul(P_EVSE,np.ones((T_mpc,1))) *np.array(self.evse_assets['eff_opt']).reshape((N_EVSE,1)) >= np.matmul((np.array(self.evse_assets['ET']) - np.array(self.evse_assets['E0'])),np.ones((T_mpc,1))))
         for i, evse_i in self.evse_assets.iterrows():
             eff_opt = evse_i['eff_opt']
+            # tstart = evse_i['']
+            # tend = evse_i['']
             # maximum power constraint
             #prob.add_constraint(P_EVSE[:,i] <=
             #                    evse_i['Pmax'])
             # minimum power constraint
             #prob.add_constraint(P_EVSE[:,i] >= 0)
             # minimum energy constraint P*dt >= ET-E0 where ET and E0 are timeseries
-            prob.add_constraint(sum(self.dt_ems * P_EVSE[:,i]) * eff_opt >= sum(evse_i['ET'] - evse_i['E0']))
+            prob.add_constraint(self.dt_ems * P_EVSE[:,i] * eff_opt >= evse_i['ET'] - evse_i['E0'])
 
         #import/export constraints
         print('adding import export constraints')
@@ -1554,7 +1558,7 @@ class EnergySystem:
                                     for i in range(N_ES)))
         else:
             prob.set_objective('min', self.market.demand_charge*\
-                            (P_max_demand+P_max_demand_pre_t0) +
+                            (P_max_demand+P_max_demand_pre_t0) + 10e6*b_Pslack +
                             sum(self.dt_ems*prices_import[t0+t]*P_import[t]\
                                 - self.dt_ems*prices_export[t0+t]*P_export[t]
                                 for t in range(T_mpc)))
@@ -1572,6 +1576,8 @@ class EnergySystem:
             P_ES_val = []
         if N_EVSE>0:
             P_EVSE_val = np.matrix(P_EVSE.value)
+            print(f'P_EVSE_val from EnergySystem Optimization: {P_EVSE_val}')
+            print(f'total EVSE power: {sum(sum(P_EVSE_val))}')
         else:
             P_EVSE_val = []
         P_import_val = np.matrix(P_import.value)

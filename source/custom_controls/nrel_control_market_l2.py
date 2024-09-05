@@ -120,9 +120,8 @@ class market_control(typeB_control):
         #voltages = json.loads(h.helicsInputGetString(self.subscriptions[0]))
         #currents = json.loads(h.helicsInputGetString(self.subscriptions[1]))
         #DSS_state_info_dict = get_messages_to_request_state_info_from_OpenDSS(self, federate_time)
-
-        ev_control_setpoints = self.market.solve(DSS_state_info_dict)
-        print(f'nrel_control_market_l2 line 125, updated evse setpoints to {ev_control_setpoints}')
+        ev_control_setpoints = self.market.solve(DSS_state_info_dict, federate_time)
+        #print(f'nrel_control_market_l2 line 125, updated evse setpoints to {ev_control_setpoints}')
         PQ_setpoints = []
         for SE_id in ev_control_setpoints.keys():
             X = SE_setpoint()

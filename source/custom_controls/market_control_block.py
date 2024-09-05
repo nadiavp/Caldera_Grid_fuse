@@ -43,6 +43,7 @@ class LPMarketController():
         self.evse_df = evse_df # this should come from a csv and define the Pmin and max, as well as Emin and max, E0, Ehorizon, and busid
         self.stationary_storage_df = stationary_storage_df # this should come from a csv and define the Pmin and max, Emin and max, E0, Ehorizon, and busid
         # we can also assume that E0=Ehorizon if we want conservation of energy
+        # only run the optimization once and then query the outputs
         # this controller also requires market data
         self.bus_id_market = 0
         self.prices_export = []
@@ -53,7 +54,8 @@ class LPMarketController():
 
 
 
-    def setup_market_controller(self, prices_export, demand_charge, Pmax_market=1000000, Pmin_market=-100000, ce_file='inputs/CE_testing_until40park_CE_Sep_Shellbank_22700.csv', pev_file='inputs/EV_inputs.csv', evse_types_file='inputs/EVSE_inputs.csv'):   #TODO    
+
+    def setup_market_controller(self, prices_export, demand_charge, Pmax_market=1000000, Pmin_market=-100000, ce_file='inputs/CE_Sep_Shellbank_22700.csv', pev_file='inputs/EV_inputs.csv', evse_types_file='inputs/EVSE_inputs.csv'):   #TODO    
         hs = self.horizon_sec
         ts = self.timestep_sec
         n_timesteps = int(hs/ts)
@@ -154,16 +156,19 @@ class LPMarketController():
 
         self.network = Network_3ph(self.feeder_name)
         market = Market(bus_id_market, prices_export, prices_import, demand_charge, Pmax_market, Pmin_market, ts, hs)
+        print(f'market.T_market is {market.T_market} market.dt is {market.dt_market}')
         self.market = market
         energy_system = EnergySystem(nda_list, self.network, market, ts, hs, ts, hs, evse_assets=self.evse_assets)
+        print(f'energy system T: {energy_system.T}, energy_system.dt {energy_system.dt}, energy_system.T_ems {energy_system.T_ems}')
         self.energy_system = energy_system
 
 
-    def solve(self, DSS_state_info_dict):
+    def solve(self, DSS_state_info_dict, federate_time=0):
         # this function solves the control parameters
         ev_control_setpoints = {}
         hs = self.horizon_sec
         ts = self.timestep_sec
+        i_timestep = int(np.floor(federate_time/ts))
 
         # first get the updated grid status
         #voltages = json.loads(h.helicsInputGetString(self.subscriptions[0]))
@@ -194,11 +199,12 @@ class LPMarketController():
         i_line_unconst_list = list(range(network.N_lines))   
         v_bus_unconst_list = list(range((network.N_phases)*(network.N_buses-1))) # no voltage constraints 
         #print(f'energy_system.evse_assets in market_control_block {self.energy_system.evse_assets}')
+        t0 = int(np.floor(federate_time/self.energy_system.dt))
         EMS_output = self.energy_system.simulate_network_3phPF('3ph',\
                                         i_unconstrained_lines=\
                                         i_line_unconst_list,\
                                         v_unconstrained_buses=\
-                                        v_bus_unconst_list)                                    
+                                        v_bus_unconst_list, t0=t0)                                    
                                   
         #pickle.dump(EMS_output, open(join(EMS_path_string, normpath('Month' + str(Case_Month) + '_Day' + str(day) + '_EMS_output_' + str(x) + '.p')), "wb"))    
 
@@ -213,7 +219,7 @@ class LPMarketController():
         i_es = 0
         for SE_id in self.evse_assets['SE_id'].values:
             # take the first timestep in the horizon opt
-            ev_control_setpoints[SE_id] = P_EVSE_ems[0,i_es]#P_import_ems[load_name] - P_export_ems[load_name]
+            ev_control_setpoints[SE_id] = P_EVSE_ems[i_timestep,i_es]#P_import_ems[load_name] - P_export_ems[load_name]
             i_es = i_es+1
         #print(f'updating setpoints line 219 market_control_block {ev_control_setpoints}')
         self.control_setpoints = ev_control_setpoints

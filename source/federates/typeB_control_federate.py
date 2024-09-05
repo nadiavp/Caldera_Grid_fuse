@@ -179,7 +179,7 @@ def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constr
         #-------------------------------------
         #     Solve Optimization Problem
         #-------------------------------------
-        
+        print(f'typeB_control_federate solve at time {federate_time}')
         (Caldera_control_info_dict, DSS_control_info_dict, DER_data) = control_obj.solve(federate_time, Caldera_state_info_dict, DSS_state_info_dict)
         
         #-------------------------------------------
@@ -197,7 +197,9 @@ def typeB_control_federate(io_dir, json_config_file_name, simulation_time_constr
         if federate_time >= end_simulation_unix_time-grid_timestep_sec:
             break
         else:
+            print(f'request next timestep: {federate_time}')
             federate_time = h.helicsFederateRequestNextStep(fed)
+            print(f'time granted: {federate_time}')
 
     
     #=====================================
