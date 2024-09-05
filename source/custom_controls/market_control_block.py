@@ -24,7 +24,7 @@ from global_aux import OpenDSS_message_types
 #####
 
 class LPMarketController():
-    def __init__(self, name='greedy', helics_config_path='', timestep_sec=60*15, feeder_name='ieee_34', dss_file_name='Main.dss', horizon_sec=24*60*60, evse_df=[], stationary_storage_df=[]):
+    def __init__(self, simulation_time_constraints, name='greedy', helics_config_path='', feeder_name='ieee_34', dss_file_name='Main.dss', evse_df=[], stationary_storage_df=[]):
         # add important params here
         self.name = name
         self.dss_file_name = dss_file_name
@@ -35,8 +35,9 @@ class LPMarketController():
         self.src_df = src_df # voltage sources on opendss model
         self.bus_df = bus_df # bus df of voltage base, name, number, connection type, P, Q, phases
         self.load_df = load_df # load df of name, number, bus name, connection type, P, Q, phases
-        self.horizon_sec = horizon_sec
-        self.timestep_sec = timestep_sec
+        self.horizon_sec = simulation_time_constraints.end_simulation_unix_time
+        self.timestep_sec = simulation_time_constraints.grid_timestep_sec
+        self.start_time_sec = simulation_time_constraints.start_simulation_unix_time
         #self.line_df = line_df
         #self.solution_df = solution_df
         #self.Ybus = Ybus
@@ -56,7 +57,7 @@ class LPMarketController():
 
 
     def setup_market_controller(self, prices_export, demand_charge, Pmax_market=1000000, Pmin_market=-100000, ce_file='inputs/CE_Sep_Shellbank_22700.csv', pev_file='inputs/EV_inputs.csv', evse_types_file='inputs/EVSE_inputs.csv'):   #TODO    
-        hs = self.horizon_sec
+        hs = (self.horizon_sec-self.start_time_sec)
         ts = self.timestep_sec
         n_timesteps = int(hs/ts)
         if not isinstance(Pmax_market, list):
@@ -66,13 +67,13 @@ class LPMarketController():
         # setup market and energy management objects
 
         if self.name == "TOU_withoutV":            
-            prices_import = [[0.2]]* int(24*3600/self.timestep_sec)
+            prices_import = [[0.2]]* n_timesteps
 
         elif self.name == "DA_withoutV":
-            prices_import = [[0.15]]* int(24*3600/self.timestep_sec)
+            prices_import = [[0.15]]* n_timesteps
 
         else: #self.name == 'greedy':
-            prices_import = [[0.1]]* int(24*3600/self.timestep_sec) #[]
+            prices_import = [[0.1]]* n_timesteps #[]
 
         # pull lists of non-dispatchable and dispatchable assets from opendss model
 
@@ -119,8 +120,8 @@ class LPMarketController():
                 pev_battery_sizes.append(ev_battery_size)
                 start_charge = ce_i['soc_i']*ev_battery_size
                 end_charge = ce_i['soc_f']*ev_battery_size
-                start_timestep = int(np.floor(ce_i['start_time'] * 3600 / ts)) # convert from hours to timestep index
-                end_timestep = int(np.floor(ce_i['end_time_chg'] * 3600 / ts))
+                start_timestep = int(np.floor((ce_i['start_time'] * 3600 - self.start_time_sec)/ ts)) # convert from hours to timestep index
+                end_timestep = int(np.floor((ce_i['end_time_chg'] * 3600 - self.start_time_sec) / ts))
                 # figure out the minimum you need to charge
                 # if your charge session ends beyond the horizon, calc the actual end charge energy for end of horizon
                 if end_timestep >= n_timesteps:
@@ -168,7 +169,8 @@ class LPMarketController():
         ev_control_setpoints = {}
         hs = self.horizon_sec
         ts = self.timestep_sec
-        i_timestep = int(np.floor(federate_time/ts))
+        start_time = self.start_time_sec
+        i_timestep = int(np.floor((federate_time-start_time)/ts))
 
         # first get the updated grid status
         #voltages = json.loads(h.helicsInputGetString(self.subscriptions[0]))
@@ -199,7 +201,7 @@ class LPMarketController():
         i_line_unconst_list = list(range(network.N_lines))   
         v_bus_unconst_list = list(range((network.N_phases)*(network.N_buses-1))) # no voltage constraints 
         #print(f'energy_system.evse_assets in market_control_block {self.energy_system.evse_assets}')
-        t0 = int(np.floor(federate_time/self.energy_system.dt))
+        t0 = int(np.floor((federate_time-start_time)/self.energy_system.dt))
         EMS_output = self.energy_system.simulate_network_3phPF('3ph',\
                                         i_unconstrained_lines=\
                                         i_line_unconst_list,\

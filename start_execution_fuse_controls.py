@@ -159,19 +159,19 @@ if __name__ == '__main__':
     if args["time_step_sec"] != None:
         grid_timestep_sec = int(args["time_step_sec"])
     else:
-        grid_timestep_sec = 60*60
+        grid_timestep_sec = 60*15
     
     # Set the start time.
     if args["start_time_sec"] != None:
         start_simulation_unix_time = int(args["start_time_sec"])
     else:
-        start_simulation_unix_time = 60*60*2 #120
+        start_simulation_unix_time = 60*60*6 #120
     
     # Set the end time.
     if args["end_time_sec"] != None:
         end_simulation_unix_time = int(args["end_time_sec"])
     else:
-        end_simulation_unix_time = 1*24*3600
+        end_simulation_unix_time = 30*3600
 
     # The flag to use or not use OpenDSS
     if args["use_opendss"] != None and ( (isinstance(args["use_opendss"], str) and args["use_opendss"].lower() == "true") or args["use_opendss"] == True ):
@@ -311,12 +311,15 @@ if __name__ == '__main__':
     #   Market Control Federate
     #------------------------------
     json_config_file_name = 'control_strategy_market.json'
-    horizon_sec = 3600*24 #(end_simulation_unix_time - start_simulation_unix_time)
+    horizon_sec = simulation_time_constraints.end_simulation_unix_time - simulation_time_constraints.start_simulation_unix_time #(end_simulation_unix_time - start_simulation_unix_time)
+    #simulation_time_constraints.start_simulation_unix_time = start_simulation_unix_time
+    #simulation_time_constraints.end_simulation_unix_time = end_simulation_unix_time
+    #simulation_time_constraints.grid_timestep_sec = grid_timestep_sec
     print(f'optimization horizon is {horizon_sec}')
     opendss_file_to_site_storage='../opendss/Shellbank_22700/Master.dss'
     print(opendss_file_to_site_storage)
     CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_Sep_Shellbank_22700.csv', #SE_Sep_Shellbank_22700_24hr.csv',
-        name='market_control', helics_config_path=json_config_file_name, timestep_sec=60*60, feeder_name='Shellbank_22700', horizon_sec=horizon_sec) #
+        name='market_control', helics_config_path=json_config_file_name, feeder_name='Shellbank_22700') #
     p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='market_control_federate')
     processes.append(p)
 

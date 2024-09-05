@@ -20,7 +20,7 @@ It then does some SCM control and sends those EV control setpoints to the EV Sim
 
 class market_control(typeB_control):
     def __init__(self, base_dir, simulation_time_constraints, input_se_csv='inputs/SE_.csv',
-        name='market_control', helics_config_path='', timestep_sec=60*5, feeder_name='ieee_34', horizon_sec=24*60*60):
+        name='market_control', helics_config_path='', feeder_name='ieee_34'):
         super().__init__(base_dir, simulation_time_constraints)
         # add important params here
         self.name = name
@@ -33,8 +33,10 @@ class market_control(typeB_control):
         self.voltages = []
         self.se_file = input_se_csv
         # these are for if you want time-step based sim
-        self.timestep_sec = timestep_sec
-        self.horizon_sec = horizon_sec
+        self.timestep_sec = simulation_time_constraints.grid_timestep_sec
+        self.horizon_sec = simulation_time_constraints.end_simulation_unix_time
+        self.start_time_sec = simulation_time_constraints.start_simulation_unix_time
+        self.simulation_time_constraints = simulation_time_constraints
         self.time = -1
         self.helics_config_path = helics_config_path
         self.fed = None
@@ -90,9 +92,8 @@ class market_control(typeB_control):
         # loads plug-in time, departure time, and energy needs
         dss_file_name = 'opendss/'+self.feeder_name+'/Master.dss'  
         evse_df = pd.read_csv(self.se_file)   
-        self.market = LPMarketController(dss_file_name=dss_file_name, feeder_name=self.feeder_name,\
-         helics_config_path=self.helics_config_path, horizon_sec=self.horizon_sec, timestep_sec=self.timestep_sec,\
-         evse_df = evse_df )
+        self.market = LPMarketController(simulation_time_constraints = self.simulation_time_constraints, dss_file_name=dss_file_name, feeder_name=self.feeder_name,\
+         helics_config_path=self.helics_config_path, evse_df = evse_df)
         prices_export = [[0.8]]*int(24*3600/self.timestep_sec)
         self.market.setup_market_controller(prices_export=prices_export, demand_charge=0)
 
