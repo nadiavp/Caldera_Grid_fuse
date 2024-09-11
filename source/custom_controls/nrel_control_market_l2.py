@@ -93,8 +93,8 @@ class market_control(typeB_control):
         dss_file_name = 'opendss/'+self.feeder_name+'/Master.dss'  
         evse_df = pd.read_csv(self.se_file)   
         self.market = LPMarketController(simulation_time_constraints = self.simulation_time_constraints, dss_file_name=dss_file_name, feeder_name=self.feeder_name,\
-         helics_config_path=self.helics_config_path, evse_df = evse_df)
-        prices_export = [[0.8]]*int(24*3600/self.timestep_sec)
+         helics_config_path=self.helics_config_path, evse_df = evse_df, name=self.name)
+        prices_export = [[0.0]]*int((self.simulation_time_constraints.end_simulation_unix_time - self.simulation_time_constraints.start_simulation_unix_time)/self.simulation_time_constraints.grid_timestep_sec) #int(24*3600/self.timestep_sec)
         self.market.setup_market_controller(prices_export=prices_export, demand_charge=0)
 
         #if self.helics_config_path == '':

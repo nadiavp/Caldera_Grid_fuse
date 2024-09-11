@@ -1,6 +1,7 @@
 
 from re import I
 import sys
+import os
 
 from market_system.Markets import Market
 #from market_system.Assets import NondispatchableAsset_3ph
@@ -65,15 +66,63 @@ class LPMarketController():
         if not isinstance(Pmin_market, list):
             Pmin_market = [Pmin_market]*int(hs/ts)
         # setup market and energy management objects
+        market_based_control_names = ['TOU_withoutV', 'DA_withoutV', 'greedy', 'LMP_dayahead', 'LMP_realtime']
+        emissions_based_control_names = ['PJM_emissions', 'emissions']
 
-        if self.name == "TOU_withoutV":            
-            prices_import = [[0.2]]* n_timesteps
+        # start 2nd of Sept 2022, end 4 of Sept 2022
+        if self.name in market_based_control_names:
+            hs_market = 72*3600 # assume 3 days of simulation
+            ts_market = 3600 # assume hourly timesteps
+            LMP_path_string = os.path.join(os.getcwd(), 'inputs','market_prices')
+            day_ahead_path_string = os.path.join(LMP_path_string,"Dayahead_LMP_hourly_2022.csv")
+            print(f'day_ahead_path_string: {day_ahead_path_string}')
+            open(day_ahead_path_string, 'r')
+            DA_LMP_hourly_2022 = pd.read_csv(day_ahead_path_string)
+            start_lmp_index = DA_LMP_hourly_2022.index[DA_LMP_hourly_2022['Time'] == '2022-09-02 00:00:00-04:00'].tolist()[0]
+            end_lmp_index = start_lmp_index + int(hs_market/ts_market) - 1
+            if self.name == "TOU_withoutV":            
+                #prices_import = [[0.2]]* n_timesteps
+                prices_import = DA_LMP_hourly_2022.iloc[start_lmp_index:end_lmp_index]['TOU_cent'].values
+            elif self.name == "DA_withoutV":
+                #prices_import = [[0.15]] * n_timesteps
+                prices_import = DA_LMP_hourly_2022[start_lmp_index:end_lmp_index]['LMP_cent_adjust'].values
+            elif self.name == "LMP_dayahead":
+                # adjusted values are scaled such that the time averaged LMP is equalt to the time averaged TOU
+                prices_import = DA_LMP_hourly_2022[start_lmp_index:end_lmp_index]['LMP_cent_adjust'].values
+            elif self.name == "LMP_realtime":
+                RT_LMP_hourly_2022 = pd.read_csv(os.path.join(LMP_path_string,"RT_LMP_hourly_2022.csv"))
+                start_lmp_index = RT_LMP_hourly_2022[RT_LMP_hourly_2022['Time'] == '2022-09-01 00:00:00-04:00'].tolist()[0]
+                end_lmp_index = start_lmp_index + int(hs_market/ts_market) - 1
+                # adjusted values are scaled such that the time averaged LMP is equal to the time averaged TOU
+                prices_import = RT_LMP_hourly_2022[start_lmp_index:end_lmp_index]['LMP_cent_adjust'].values
+            else:
+                prices_import = DA_LMP_hourly_2022.iloc[start_lmp_index:end_lmp_index]['TOU_cent'].values #[[0.15]] * n_timesteps
+        elif self.name in emissions_based_control_names:
+            # for the emissions based control, read from a csv
+            # and then scale to be similar to typical (divide by 100)
+            demand_charge = 0
+            carbon_file_path = os.path.join(os.getcwd(), 'inputs', 'market_prices', "Cambium23_MidCase_hourly_PJM_East_2030_srmer_co2e.xlsx")
+            carbon_df = pd.read_excel(carbon_file_path)
 
-        elif self.name == "DA_withoutV":
-            prices_import = [[0.15]]* n_timesteps
+            # Convert timestamp to datetime
+            carbon_df['timestamp'] = pd.to_datetime(carbon_df['timestamp'])
 
+            # Extract month, day, and hour from the timestamp
+            carbon_df['month'] = carbon_df['timestamp'].dt.month
+            carbon_df['day'] = carbon_df['timestamp'].dt.day
+            carbon_df['hour'] = carbon_df['timestamp'].dt.hour
+            # get data for Sept 2, 2030
+            carbon_df = carbon_df[carbon_df['month']==9]
+            carbon_df = carbon_df[carbon_df['day']==2]
+            prices_import = carbon_df['srmer_co2e'].values
+            # get the timestep and horizon for the carbon values
+            ts_market = (carbon_df['hour'].values[1] - carbon_df['hour'].values[0])*3600
+            hs_market = ts*len(prices_import)
         else: #self.name == 'greedy':
             prices_import = [[0.1]]* n_timesteps #[]
+            hs_market = hs
+            ts_market = ts
+        print(f'import pricing based on {self.name} style control: {prices_import}')
 
         # pull lists of non-dispatchable and dispatchable assets from opendss model
 
@@ -156,6 +205,11 @@ class LPMarketController():
         bus_id_market = 0 # all buses have the same market, so this identifier can be 0
 
         self.network = Network_3ph(self.feeder_name)
+        # the market prices need to be interpolated to match the timestep of the optimization
+        timesteps_market = [i*ts_market for i in range(len(prices_import))]
+        timesteps_opt = [i*ts for i in range(n_timesteps)]
+        prices_import = np.interp(timesteps_opt, timesteps_market, prices_import)
+        print(f'interpolating from {timesteps_market} to {timesteps_opt} with prices {prices_import}')
         market = Market(bus_id_market, prices_export, prices_import, demand_charge, Pmax_market, Pmin_market, ts, hs)
         print(f'market.T_market is {market.T_market} market.dt is {market.dt_market}')
         self.market = market
