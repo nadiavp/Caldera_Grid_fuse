@@ -101,8 +101,8 @@ class LPMarketController():
             # for the emissions based control, read from a csv
             # and then scale to be similar to typical (divide by 100)
             demand_charge = 0
-            carbon_file_path = os.path.join(os.getcwd(), 'inputs', 'market_prices', "Cambium23_MidCase_hourly_PJM_East_2030_srmer_co2e.xlsx")
-            carbon_df = pd.read_excel(carbon_file_path)
+            carbon_file_path = os.path.join(os.getcwd(), 'inputs', 'market_prices', "Cambium23_MidCase_hourly_PJM_East_2030_srmer_co2e.csv")
+            carbon_df = pd.read_csv(carbon_file_path)
 
             # Convert timestamp to datetime
             carbon_df['timestamp'] = pd.to_datetime(carbon_df['timestamp'])

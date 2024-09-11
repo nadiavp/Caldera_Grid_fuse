@@ -317,9 +317,9 @@ if __name__ == '__main__':
     #simulation_time_constraints.grid_timestep_sec = grid_timestep_sec
     print(f'optimization horizon is {horizon_sec}')
     opendss_file_to_site_storage='../opendss/Shellbank_22700/Master.dss'
-    print(opendss_file_to_site_storage)
+    print(opendss_file_to_site_storage) # switch name of CS_M_obj to "LMP_dayahead"
     CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_Sep_Shellbank_22700.csv', #SE_Sep_Shellbank_22700_24hr.csv',
-        name="LMP_dayahead", helics_config_path=json_config_file_name, feeder_name='Shellbank_22700') #
+        name="emissions", helics_config_path=json_config_file_name, feeder_name='Shellbank_22700') #
     p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='market_control_federate')
     processes.append(p)
 
