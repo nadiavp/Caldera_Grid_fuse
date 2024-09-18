@@ -260,6 +260,7 @@ class Network_3ph():
                                     v_lin0.shape[0]],dtype=np.complex_)
         Hv_lin0_diag_inv = np.zeros([v_lin0.shape[0],
                                      v_lin0.shape[0]],dtype=np.complex_)
+        
         for bus_i in range(1,len(self.bus_df)):
             aph_index = (bus_i-1)*3
             bph_index = (bus_i-1)*3+1

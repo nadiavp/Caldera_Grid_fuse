@@ -20,7 +20,7 @@ It then does some SCM control and sends those EV control setpoints to the EV Sim
 
 class market_control(typeB_control):
     def __init__(self, base_dir, simulation_time_constraints, input_se_csv='inputs/SE_.csv',
-        name='market_control', helics_config_path='', feeder_name='ieee_34'):
+        name='market_control', helics_config_path='', feeder_name='ieee_34', input_ce_csv='inputs/CE_.csv'):
         super().__init__(base_dir, simulation_time_constraints)
         # add important params here
         self.name = name
@@ -32,6 +32,7 @@ class market_control(typeB_control):
         self.control_setpoints = {'evse0':0, 'evse1':0, 'evse2':0}
         self.voltages = []
         self.se_file = input_se_csv
+        self.ce_file= input_ce_csv
         # these are for if you want time-step based sim
         self.timestep_sec = simulation_time_constraints.grid_timestep_sec
         self.horizon_sec = simulation_time_constraints.end_simulation_unix_time
@@ -69,7 +70,7 @@ class market_control(typeB_control):
     
     def get_messages_to_request_state_info_from_Caldera(self, next_control_timestep_start_unix_time):
         return_dict = {}
-        return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = [2] #Grid teams to update this
+        return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = [10] #Grid teams to update this
         #return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0003', 'ext_market_l2']
 
         # The return value (return_dict) must be a dictionary with Caldera_message_types as keys.
@@ -95,7 +96,7 @@ class market_control(typeB_control):
         self.market = LPMarketController(simulation_time_constraints = self.simulation_time_constraints, dss_file_name=dss_file_name, feeder_name=self.feeder_name,\
          helics_config_path=self.helics_config_path, evse_df = evse_df, name=self.name)
         prices_export = [[0.0]]*int((self.simulation_time_constraints.end_simulation_unix_time - self.simulation_time_constraints.start_simulation_unix_time)/self.simulation_time_constraints.grid_timestep_sec) #int(24*3600/self.timestep_sec)
-        self.market.setup_market_controller(prices_export=prices_export, demand_charge=0)
+        self.market.setup_market_controller(prices_export=prices_export, demand_charge=0, ce_file=self.ce_file)
 
         #if self.helics_config_path == '':
         #    #fedinfo = h.helicsCreateFederateInfo()

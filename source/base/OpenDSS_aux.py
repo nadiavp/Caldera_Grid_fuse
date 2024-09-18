@@ -73,7 +73,7 @@ class open_dss_helper:
     def __init__(self, io_dir):
         self.io_dir = io_dir
         self.dss_file_name = 'Master.dss' #'ieee34.dss'
-        self.feeder_name = 'Shellbank_22700'
+        self.feeder_name = 'Hanover_01359'
 
     def get_request_list(self):
         return [input_datasets.baseLD_data_obj, input_datasets.all_caldera_node_names, input_datasets.HPSE_caldera_node_names]
@@ -492,7 +492,8 @@ class open_dss_Caldera:
             pu_V = 0
             
             for i in range(num_nodes):
-                pu_V += dss.CmathLib.cabs(V_complex_pu[2*i], V_complex_pu[2*i+1])
+                pu_V += (V_complex_pu[2*i] **2 + V_complex_pu[2*i+1] **2) ** (1/2) # complex absolute value
+                #pu_V += dss.CmathLib.cabs(V_complex_pu[2*i], V_complex_pu[2*i+1])
             
             return_dict[bus_name] = pu_V / num_nodes
         

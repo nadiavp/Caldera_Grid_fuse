@@ -447,8 +447,8 @@ def dssConvert(feeder,dssName, save_model=True):
         #- extract YMatrix
         #DSSText.Command='Solve'
         dss.Solution.Solve()
-        Y =csc_matrix(dss.YMatrix.getYsparse())#DSSCircuit.SystemY  # --- slow
-        #nNodes = DSSCircuit.NumNodes
+        #Y =csc_matrix(dss.YMatrix.getYsparse())#DSSCircuit.SystemY  # --- slow
+        #Ytest = dss.Circuit.SystemY()
         #
         #Yres = np.reshape(Ybus, (nNodes, nNodes*2))  # --- slow
         #
@@ -464,6 +464,8 @@ def dssConvert(feeder,dssName, save_model=True):
         #- return to the previous solution   
         #DSSText.Command='Solve'
         dss.Solution.Solve()
+
+        Y =csc_matrix(dss.YMatrix.getYsparse())#DSSCircuit.SystemY  # --- slow
         
         nNodes2 = dss.Circuit.NumNodes()
 
@@ -481,6 +483,7 @@ def dssConvert(feeder,dssName, save_model=True):
         
         # OpenDSS Y matrix to Full Y matrix conversion
         phase_index_trans= -1.0 * np.ones(len(FullPhaseNames))
+        #print(f'N_phases: {N_phases}, N_buses: {N_buses} \n Ymatrix size: {Y.shape}, Ytest: {len(Ytest)}, Ylist: {yList}')
         
         for nodename in FullPhaseNames:    
             if nodename.upper() in yList:
