@@ -85,7 +85,7 @@ class LPMarketController():
 
         # start 2nd of Sept 2022, end 4 of Sept 2022
         if self.name in market_based_control_names:
-            hs_market = 72*3600 # assume 3 days of simulation
+            hs_market = hs # assume 3 days of simulation
             ts_market = 3600 # assume hourly timesteps
             LMP_path_string = os.path.join(os.getcwd(), 'inputs','market_prices')
             day_ahead_path_string = os.path.join(LMP_path_string,"Dayahead_LMP_hourly_2022.csv")
@@ -146,24 +146,25 @@ class LPMarketController():
         evse_types = pd.read_csv(evse_types_file)
         evse_assets = self.evse_df#self.stationary_storage_df
         n_evse = len(self.evse_df['SE_id'])
-        evse_assets['Emax'] = [0]*n_evse # assume no evs at station until updated with charge events
-        evse_assets['Emin'] = [0]*n_evse
-        evse_assets['Pmax'] = [0]*n_evse
-        evse_assets['Pmin'] = [0]*n_evse
+        evse_assets['Emax'] = [0 for i in range(n_evse)] # assume no evs at station until updated with charge events
+        evse_assets['Emin'] = [0 for i in range(n_evse)] 
+        evse_assets['Pmax'] = [0 for i in range(n_evse)] 
+        evse_assets['Pmin'] = [0 for i in range(n_evse)] 
         evse_assets['Pmax_abs'] = max(evse_assets['Pmax'])*n_evse
-        evse_assets['E0'] = .1*evse_assets['Emax']
+        evse_assets['E0'] = [np.zeros((n_timesteps,1)) for i in range(n_evse)] #.1*evse_assets['Emax']
         #TODO: add integration of charge event limits
-        final_energy = np.zeros(n_timesteps)
         #final_energy[-1] = 70 #assume wanting full charge for 70kWh battery
-        evse_assets['ET'] = [final_energy]*n_evse # this becomes a list
+        evse_assets['ET'] = [np.zeros((n_timesteps,1)) for i in range(n_evse)] # this becomes a list
         evse_assets['dt_ems'] = [ts/3600]*n_evse
         evse_assets['T_ems'] = [24*12]*n_evse
-        evse_assets['Pnet'] = [np.zeros(n_timesteps)]*n_evse
-        evse_assets['Qnet'] = [np.zeros(n_timesteps)]*n_evse
-        evse_assets['c_deg_lin'] = [0]*n_evse
+        evse_assets['Pnet'] = [np.zeros((n_timesteps,1)) for i in range(n_evse)]
+        evse_assets['Qnet'] = [np.zeros((n_timesteps,1)) for i in range(n_evse)]
+        evse_assets['c_deg_lin'] = [0 for i in range(n_evse)] 
         evse_assets['eff'] = [np.ones(100)]*n_evse
         evse_assets['eff_opt'] = [1]*n_evse
         evse_assets['bus_id'] = evse_assets['node_id']
+
+        #evse_assets = pd.DataFrame(evse_assets)
         # read in the EV specs to get the battery sizes
         ev_df = pd.read_csv(pev_file)
         # first read in the CE (charge event) file and determine the start and stop times 
@@ -178,6 +179,7 @@ class LPMarketController():
             evse_assets['Pmax'][se_iter] = max_evse
             # assume there is more than one
             pev_battery_sizes = [0]
+            print(f'ces at se {len(ce_at_se)}')
             for _, ce_i in ce_at_se.iterrows():
                 ev_battery_size = ev_df[ev_df['EV_type'] == ce_i['pev_type']]['usable_battery_size_kWh'].item()
                 pev_battery_sizes.append(ev_battery_size)
@@ -187,12 +189,17 @@ class LPMarketController():
                 end_timestep = int(np.floor((ce_i['end_time_chg'] * 3600 - self.start_time_sec) / ts))
                 # figure out the minimum you need to charge
                 # if your charge session ends beyond the horizon, calc the actual end charge energy for end of horizon
+                if end_timestep <0 or start_timestep > n_timesteps:
+                    # if the end time is before the simulation start time, then don't include this in the sim
+                    continue 
                 if end_timestep >= n_timesteps:
                     end_charge = max(0, end_charge - (end_timestep - n_timesteps) * max_evse)
                     end_timestep = n_timesteps - 1
-                evse_assets.loc[evse_assets['SE_id']==se_id,'E0'][start_timestep:end_timestep] = start_charge
-                evse_assets.loc[evse_assets['SE_id']==se_id,'ET'][end_timestep] = end_charge
-            evse_assets.loc[evse_assets['SE_id']==se_id,'Emax'] = max(pev_battery_sizes)
+                evse_assets['E0'][se_iter][start_timestep,0]= start_charge
+                evse_assets['ET'][se_iter][end_timestep,0]= end_charge #final_energy_i
+                #print(f'start_timestep {start_timestep} start_charge {start_charge} vs {sum(sum(evse_assets["E0"][se_iter]))}')
+                #print(f'end_timestep: {end_timestep} end_charge: {end_charge} vs {sum(sum(evse_assets["ET"][se_iter]))}')
+            evse_assets.loc[evse_assets['SE_id']==se_id,['Emax']] = max(pev_battery_sizes)
             se_iter += 1
 
         self.evse_assets = evse_assets[evse_assets['Emax']>0] # only load the ones with vehicles at them to save on variables/constraints
@@ -223,19 +230,19 @@ class LPMarketController():
         timesteps_market = [i*ts_market for i in range(len(prices_import))]
         timesteps_opt = [i*ts for i in range(n_timesteps)]
         prices_import = np.interp(timesteps_opt, timesteps_market, prices_import)
-        print(f'interpolating from {timesteps_market} to {timesteps_opt} with prices {prices_import}')
+        #print(f'interpolating from {timesteps_market} to {timesteps_opt} with prices {prices_import}')
         market = Market(bus_id_market, prices_export, prices_import, demand_charge, Pmax_market, Pmin_market, ts, hs)
-        print(f'market.T_market is {market.T_market} market.dt is {market.dt_market}')
+        #print(f'market.T_market is {market.T_market} market.dt is {market.dt_market}')
         self.market = market
         energy_system = EnergySystem(nda_list, self.network, market, ts, hs, ts, hs, evse_assets=self.evse_assets)
-        print(f'energy system T: {energy_system.T}, energy_system.dt {energy_system.dt}, energy_system.T_ems {energy_system.T_ems}')
+        #print(f'energy system T: {energy_system.T}, energy_system.dt {energy_system.dt}, energy_system.T_ems {energy_system.T_ems}')
         self.energy_system = energy_system
 
 
     def solve(self, DSS_state_info_dict, federate_time=0):
         # this function solves the control parameters
         ev_control_setpoints = {}
-        hs = self.horizon_sec
+        hs = (self.horizon_sec-self.start_time_sec)
         ts = self.timestep_sec
         start_time = self.start_time_sec
         i_timestep = int(np.floor((federate_time-start_time)/ts))
@@ -251,8 +258,8 @@ class LPMarketController():
         if OpenDSS_message_types.get_basenetloads in DSS_state_info_dict.keys():
             non_disp_loads = DSS_state_info_dict[OpenDSS_message_types.get_basenetloads]
             for busname_i in non_disp_loads.keys():
-                self.nondispatch_assets.loc[self.nondispatch_assets['bus_id']==busname_i,'Pnet_pred'] = non_disp_loads[busname_i][0]
-                self.nondispatch_assets.loc[self.nondispatch_assets['bus_id']==busname_i,'Qnet_pred'] = non_disp_loads[busname_i][1]
+                self.nondispatch_assets.loc[self.nondispatch_assets['bus_id']==busname_i,['Pnet_pred']] = non_disp_loads[busname_i][0]
+                self.nondispatch_assets.loc[self.nondispatch_assets['bus_id']==busname_i,['Qnet_pred']] = non_disp_loads[busname_i][1]
         #for i_nda in range(len(self.nondispatch_assets)):
         #    busname_i = self.nondispatch_assets.loc[i_nda,'bus_id']
         #    self.nondispatch_assets.loc[i_nda, 'Pnet_pred'] = self.nondispatch_assets[i_nda, 'Pnet']
@@ -265,32 +272,46 @@ class LPMarketController():
         #self.energy_system = EnergySystem(self.storage_assets, nda_list, self.network, self.market, ts, hs, ts, hs)
 
         network = self.network
-
+        network.N_phases = 1
+        network.N_buses = 1
+        self.energy_system.network = network
         i_line_unconst_list = []#list(range(network.N_lines))   
-        v_bus_unconst_list = list(range((network.N_phases)*(network.N_buses-1))) # no voltage constraints 
-        #print(f'energy_system.evse_assets in market_control_block {self.energy_system.evse_assets}')
+        v_bus_unconst_list = [] # no voltage constraints 
         t0 = int(np.floor((federate_time-start_time)/self.energy_system.dt))
-        EMS_output = self.energy_system.simulate_network_3phPF('3ph',\
-                                        i_unconstrained_lines=\
-                                        i_line_unconst_list,\
-                                        v_unconstrained_buses=\
-                                        v_bus_unconst_list, t0=t0)                                    
-                                  
+
+        # run the optimization for each bus
+        for bus_i in self.bus_df['name']:
+            evse_bus_i = self.evse_assets[self.evse_assets['bus_id']==bus_i] # the evse at bus_i
+            if len(evse_bus_i)>0:
+                if sum(sum(evse_bus_i['ET']))>0:
+                    #print(f'running opt for {evse_bus_i}')
+                    self.energy_system = EnergySystem(nda_list, self.network, self.market, ts, hs, ts, hs, evse_assets=evse_bus_i)
+                    #print(f'energy_system.evse_assets in market_control_block {self.energy_system.evse_assets}')
+
+                    EMS_output = self.energy_system.simulate_network_3phPF('3ph',\
+                                                i_unconstrained_lines=\
+                                                i_line_unconst_list,\
+                                                v_unconstrained_buses=\
+                                                v_bus_unconst_list, t0=t0)  
+                    i_es = 0
+                    for se_id in evse_bus_i['SE_id']:                                              
+                        ev_control_setpoints[se_id] = EMS_output['P_EVSE_ems'][i_timestep, i_es]                       
+                        i_es = i_es+1
         #pickle.dump(EMS_output, open(join(EMS_path_string, normpath('Month' + str(Case_Month) + '_Day' + str(day) + '_EMS_output_' + str(x) + '.p')), "wb"))    
 
         #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ EMS Result post-processing and Analysis~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Step 1:  Extract the original EMS results  
         #PF_network_res = EMS_output['PF_network_res']
-        P_import_ems = EMS_output['P_import_ems']
-        P_export_ems = EMS_output['P_export_ems']
-        P_EVSE_ems = EMS_output['P_EVSE_ems']
-        #print(f'P_EVSE_ems line 209 market_control_block: {P_EVSE_ems}')
-        #P_demand_ems = EMS_output['P_demand_ems']  
-        i_es = 0
-        for SE_id in self.evse_assets['SE_id'].values:
-            # take the first timestep in the horizon opt
-            ev_control_setpoints[SE_id] = P_EVSE_ems[i_timestep,i_es]#P_import_ems[load_name] - P_export_ems[load_name]
-            i_es = i_es+1
+        #P_import_ems = EMS_output['P_import_ems']
+        #P_export_ems = EMS_output['P_export_ems']
+        #P_EVSE_ems = EMS_output['P_EVSE_ems']
+        ##print(f'P_EVSE_ems line 209 market_control_block: {P_EVSE_ems}')
+        ##P_demand_ems = EMS_output['P_demand_ems']  
+        #i_es = 0
+        #for SE_id in self.evse_assets['SE_id'].values:
+        #    # take the first timestep in the horizon opt
+        #    ev_control_setpoints[SE_id] = P_EVSE_ems[i_timestep,i_es]#P_import_ems[load_name] - P_export_ems[load_name]
+        #   i_es = i_es+1
         #print(f'updating setpoints line 219 market_control_block {ev_control_setpoints}')
         self.control_setpoints = ev_control_setpoints
         return ev_control_setpoints

@@ -674,32 +674,34 @@ class EnergySystem:
         #######################################
         ### STEP 3: simulate the network
         #######################################
-        N_buses = self.network.N_buses
-        N_phases = self.network.N_phases
-        P_demand_buses = np.zeros([self.n_timesteps,N_buses,N_phases])
-        Q_demand_buses = np.zeros([self.n_timesteps,N_buses,N_phases])
-        #calculate the total real and reactive power demand at each bus phase
-        for i in range(N_ESs):
-            bus_ind = int(self.network.bus_df[self.network.bus_df['name'] == self.storage_assets[i].bus_id]['number'])
-            phases_i = self.storage_assets[i].phases
-            N_phases_i = np.size(phases_i)
-            for ph_i in np.nditer(phases_i):
-                P_demand_buses[:,bus_ind,ph_i] +=\
-                self.storage_assets[i].Pnet/N_phases_i
-                Q_demand_buses[:,bus_ind,ph_i] +=\
-                self.storage_assets[i].Qnet/N_phases_i
-        for i in range(N_nondispatch):
-            bus_id = self.nondispatch_assets[i]['bus_id']
-            bus_ind = int(self.network.bus_df[self.network.bus_df['name'] == bus_id]['number'])
-            phases_i = self.nondispatch_assets[i]['phases']
-            N_phases_i = np.size(phases_i)
-            if isinstance(phases_i, int):
-                phases_i = [phases_i]
-            for ph_i in phases_i:
-                P_demand_buses[:,bus_ind,ph_i] +=\
-                self.nondispatch_assets[i]['Pnet']/N_phases_i
-                Q_demand_buses[:,bus_ind,ph_i] +=\
-                self.nondispatch_assets[i]['Qnet']/N_phases_i
+        #N_buses = self.network.N_buses
+        #N_phases = self.network.N_phases
+        #P_demand_buses = np.zeros([self.n_timesteps,N_buses,N_phases])
+        #Q_demand_buses = np.zeros([self.n_timesteps,N_buses,N_phases])
+        ##calculate the total real and reactive power demand at each bus phase
+        #for i in range(N_ESs):
+        #    bus_ind = int(self.network.bus_df[self.network.bus_df['name'] == self.storage_assets[i].bus_id]['number'])
+        #    phases_i = self.storage_assets[i].phases
+        #    N_phases_i = np.size(phases_i)
+        #    for ph_i in np.nditer(phases_i):
+        #        P_demand_buses[:,bus_ind,ph_i] +=\
+        #        self.storage_assets[i].Pnet/N_phases_i
+        #        Q_demand_buses[:,bus_ind,ph_i] +=\
+        #        self.storage_assets[i].Qnet/N_phases_i
+        #for i in range(N_nondispatch):
+        #    bus_id = self.nondispatch_assets[i]['bus_id']
+        #    if len(self.network.bus_df[self.network.bus_df['name'] == bus_id]['number'])>0:
+        #        # if there's no nondispatchable asset matching your bus, don't add loads
+        #        bus_ind = int(self.network.bus_df[self.network.bus_df['name'] == bus_id]['number'])
+        #        phases_i = self.nondispatch_assets[i]['phases']
+        #        N_phases_i = np.size(phases_i)
+        #        if isinstance(phases_i, int):
+        #            phases_i = [phases_i]
+        #        for ph_i in phases_i:
+        #            P_demand_buses[:,bus_ind,ph_i] +=\
+        #            self.nondispatch_assets[i]['Pnet']/N_phases_i
+        #            Q_demand_buses[:,bus_ind,ph_i] +=\
+        #            self.nondispatch_assets[i]['Qnet']/N_phases_i
         #Store power flow results as a list of network objects
 
         PF_network_res = self.network
@@ -1264,7 +1266,6 @@ class EnergySystem:
         #G_wye_ES_PQ = np.concatenate((G_wye_ES,G_wye_ES),axis=0)
         #G_del_ES_PQ = np.concatenate((G_del_ES,G_del_ES),axis=0)
 
-        print(f'setting up optimization variables line 1268')
         #######################################
         ### STEP 1: set up decision variables
         #######################################
@@ -1284,7 +1285,7 @@ class EnergySystem:
             E_T_min = prob.add_variable('E_T_min',
                                     N_ES, vtype='continuous')
         if N_EVSE>0:
-            print(f'adding {N_EVSE} EVSE variables')
+            #print(f'adding {N_EVSE} EVSE variables')
             P_EVSE = prob.add_variable('P_EVSE', 
                                     (T_mpc, N_EVSE), vtype='continuous')
         # (positive) net power imports
@@ -1297,7 +1298,7 @@ class EnergySystem:
         P_max_demand = prob.add_variable('P_max_demand',
                                          1, vtype='continuous')
 
-        print('setting up linear power flow models')
+        #print('setting up linear power flow models')
         #######################################
         ### STEP 2: set up linear power flow models
         #######################################
@@ -1344,7 +1345,7 @@ class EnergySystem:
         #    network_t = self.network_t
         #PF_networks_lin.append(network_t)
 
-        print('setting up constraints')
+        #print('setting up constraints')
         #######################################
         ### STEP 3: set up constraints
         #######################################
@@ -1384,12 +1385,14 @@ class EnergySystem:
                 prob.add_constraint(P_ES_dis[t,i] >= 0)
         
         # EVSE energy storage constraints
-        print(f'adding evse constraints')
+        #print(f'adding evse constraints')
         prob.add_constraint(P_EVSE <= np.ones((T_mpc,1)) * np.array(self.evse_assets['Pmax']))
         prob.add_constraint(P_EVSE >= np.zeros((T_mpc, N_EVSE))) # unidirectional charging
         # c * TxN' * Tx1 .* Nx1  -> Nx1 >= NxT * Tx1 -> Nx1
         #prob.add_constraint(self.dt_ems * np.matmul(P_EVSE,np.ones((T_mpc,1))) *np.array(self.evse_assets['eff_opt']).reshape((N_EVSE,1)) >= np.matmul((np.array(self.evse_assets['ET']) - np.array(self.evse_assets['E0'])),np.ones((T_mpc,1))))
-        for i, evse_i in self.evse_assets.iterrows():
+        evse_iter = 0
+        for _, evse_i in self.evse_assets.iterrows():
+            #print(f'adding end energy constraint for {evse_iter}th evse: {evse_i}')
             eff_opt = evse_i['eff_opt']
             # tstart = evse_i['']
             # tend = evse_i['']
@@ -1399,10 +1402,11 @@ class EnergySystem:
             # minimum power constraint
             #prob.add_constraint(P_EVSE[:,i] >= 0)
             # minimum energy constraint P*dt >= ET-E0 where ET and E0 are timeseries
-            prob.add_constraint(self.dt_ems * Asum * P_EVSE[:,i] * eff_opt >= evse_i['ET'] - evse_i['E0']) # this needs the asum
+            prob.add_constraint(self.dt_ems * Asum * P_EVSE[:,evse_iter] * eff_opt >= evse_i['ET'] - evse_i['E0']) # this needs the asum
+            evse_iter = evse_iter+1
 
         #import/export constraints
-        print('adding import export constraints')
+        #print('adding import export constraints')
         for t in range(T_mpc):
             # maximum import constraint
             prob.add_constraint(P_import[t] <= self.market.Pmax[t0 + t])
@@ -1419,7 +1423,7 @@ class EnergySystem:
             prob.add_constraint(P_max_demand  >= 0)
 
         # Network constraints
-        print('adding network constraints')
+        #print('adding network constraints')
         for t in range(T_mpc):
             #network_t = PF_networks_lin[t]
             ## Note that linear power flow matricies are in units of W (not kW)
@@ -1465,9 +1469,9 @@ class EnergySystem:
             #                                 np.conj(network_t.M0)))))
             # net import variables
             if N_ES>0:
-                prob.add_constraint(P_import[t]-P_export[t] == sum(P_EVSE[t,:]) + b_Pslack/1e3)
+                prob.add_constraint(P_import[t]-P_export[t] == sum(P_EVSE[t,:]))# + b_Pslack/1e3)
             else: 
-                prob.add_constraint(P_import[t]-P_export[t] == sum(P_EVSE[t,:]) + b_Pslack/1e3)
+                prob.add_constraint(P_import[t]-P_export[t] == sum(P_EVSE[t,:]))# + b_Pslack/1e3)
             #(np.sum(A_Pslack[i]*P_ES[t,i]\
             #*1e3 for i in range(N_ES))\
 
@@ -1533,7 +1537,7 @@ class EnergySystem:
         #                                        * self.storage_assets[i].Emax)
         #                                   - self.storage_assets[i].E[t0_dt]))
 
-        print('set up objective function')
+        #print('set up objective function')
         #######################################
         ### STEP 4: set up objective
         #######################################
@@ -1561,10 +1565,10 @@ class EnergySystem:
                                     for i in range(N_ES)))
         else:
             prob.set_objective('min', self.market.demand_charge*\
-                            (P_max_demand+P_max_demand_pre_t0) + 10e6*b_Pslack +
+                            (P_max_demand+P_max_demand_pre_t0) +
                             sum(self.dt_ems*prices_import[t0+t]*P_import[t]\
                                 - self.dt_ems*prices_export[t0+t]*P_export[t]
-                                for t in range(T_mpc)))
+                                for t in range(T_mpc))) #+ 10e6*b_Pslack
 
         #######################################
         ### STEP 5: solve the optimisation
@@ -1579,7 +1583,7 @@ class EnergySystem:
             P_ES_val = []
         if N_EVSE>0:
             P_EVSE_val = np.matrix(P_EVSE.value)
-            print(f'P_EVSE_val from EnergySystem Optimization: {P_EVSE_val}')
+            #print(f'P_EVSE_val from EnergySystem Optimization: {P_EVSE_val}')
             print(f'total EVSE power: {sum(sum(P_EVSE_val))}')
         else:
             P_EVSE_val = []
@@ -1590,8 +1594,8 @@ class EnergySystem:
                 'P_EVSE_val':P_EVSE_val,
                 'P_import_val':P_import_val,
                 'P_export_val':P_export_val,
-                'P_demand_val':P_demand_val,
-                'PF_networks_lin':PF_networks_lin}
+                'P_demand_val':P_demand_val}
+                #'PF_networks_lin':PF_networks_lin}
 
     # Mingzhi 2023.03.19
     # Greedy charging control of EVs: charging as fast as possible, consider or 
