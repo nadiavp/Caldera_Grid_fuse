@@ -171,7 +171,7 @@ if __name__ == '__main__':
     if args["end_time_sec"] != None:
         end_simulation_unix_time = int(args["end_time_sec"])
     else:
-        end_simulation_unix_time = 24*3*3600
+        end_simulation_unix_time = 24*3600
 
     # The flag to use or not use OpenDSS
     if args["use_opendss"] != None and ( (isinstance(args["use_opendss"], str) and args["use_opendss"].lower() == "true") or args["use_opendss"] == True ):

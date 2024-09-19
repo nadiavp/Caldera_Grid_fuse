@@ -9,6 +9,8 @@ from market_system.EnergySystem import EnergySystem
 from market_system.Network3phOpenDSS import Network_3ph
 from market_system.DSS_info_extraction import dssConvert
 
+import opendssdirect as dss
+
 import pickle
 import json
 import helics as h
@@ -32,8 +34,20 @@ class LPMarketController():
         self.feeder_name = feeder_name
         print(f'feeder_name in market_control_block: {feeder_name}')
         print(f'dss_file_name in market_control_block: {dss_file_name}')
-        src_df, bus_df, load_df, line_df, solution_df, Ybus = dssConvert(feeder_name,dss_file_name)
-        self.src_df = src_df # voltage sources on opendss model
+        #src_df, bus_df, load_df, line_df, solution_df, Ybus = dssConvert(feeder_name,dss_file_name)
+        #self.src_df = src_df # voltage sources on opendss model
+        dss.Command(f'Redirect {dss_file_name}')
+        LoadColumns = ["name","number","bus_name","connect","P","Q","phase_number","phase"]
+        Load_names = dss.Loads.AllNames()
+        #load_df = pd.DataFrame(data=np.zeros((nLoads,len(LoadColumns))), index=Load_names, columns=LoadColumns)
+        load_df = pd.DataFrame(index=Load_names, columns=LoadColumns)
+        bus_df = {}
+        bus_names= dss.Circuit.AllBusNames()
+        bus_df['name'] = bus_names
+        bus_df['number'] = np.arange((len(bus_names)))
+
+        load_df['name'] = Load_names
+        load_df['number'] = np.arange((len(Load_names)))
         self.bus_df = bus_df # bus df of voltage base, name, number, connection type, P, Q, phases
         self.load_df = load_df # load df of name, number, bus name, connection type, P, Q, phases
         self.horizon_sec = simulation_time_constraints.end_simulation_unix_time
@@ -252,7 +266,7 @@ class LPMarketController():
 
         network = self.network
 
-        i_line_unconst_list = list(range(network.N_lines))   
+        i_line_unconst_list = []#list(range(network.N_lines))   
         v_bus_unconst_list = list(range((network.N_phases)*(network.N_buses-1))) # no voltage constraints 
         #print(f'energy_system.evse_assets in market_control_block {self.energy_system.evse_assets}')
         t0 = int(np.floor((federate_time-start_time)/self.energy_system.dt))

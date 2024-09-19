@@ -211,13 +211,13 @@ class Network_3ph():
         self.N_phases = 3
         
 
-        self.loadDssNetwork(feeder_name,updateYZ=True,testModel=False,
+        self.loadDssNetwork(feeder_name,updateYZ=False,testModel=False,
                             testPlot=False)
-                       
-        self.update_YandZ() #setup the Z and Y bus matricies
+             
+        #self.update_YandZ() #setup the Z and Y bus matricies
         #set bus voltage and line current limits
-        self.set_pf_limits(0.95*self.Vslack_ph,
-                           1.05*self.Vslack_ph,1000e3/self.Vslack_ph) 
+        #self.set_pf_limits(0.95*self.Vslack_ph,
+        #                   1.05*self.Vslack_ph,1000e3/self.Vslack_ph) 
 
 
     def linear_model_setup(self, v_net_lin0, S_wye_lin0, S_del_lin0):
@@ -1273,6 +1273,7 @@ class Network_3ph():
         self.Vslack = VsrcLN*np.sqrt(3)
         self.Vslack_ph = VsrcLN
         self.bus_df = bus_df
+        self.N_buses = len(bus_df)
         self.line_df = line_df
         self.transformer_df = trn_df
         self.capacitor_df = cap_df

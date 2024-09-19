@@ -1212,57 +1212,57 @@ class EnergySystem:
                                                  Pnet_ES_sum[0:t0_dt])
 
         #Set up Matrix linking nondispatchable assets to their bus and phase
-        print(f'creating G nondispatch line 1222 of EnergySystem.py')
-        G_wye_nondispatch = np.zeros([3*(N_buses),N_nondispatch])
-        G_del_nondispatch = np.zeros([3*(N_buses),N_nondispatch])
+        #print(f'creating G nondispatch line 1222 of EnergySystem.py')
+        #G_wye_nondispatch = np.zeros([3*(N_buses),N_nondispatch])
+        #G_del_nondispatch = np.zeros([3*(N_buses),N_nondispatch])
         #bus_ph_index = 0
-        for i in range(N_nondispatch):
-            asset_N_phases = self.nondispatch_assets[i]['phase_number']
-            bus_id = self.nondispatch_assets[i]['bus_id']
-            bus_number = self.nondispatch_assets[i]['number']
-            # check if Wye connected
-            if len(self.network.bus_df[self.network.bus_df['name']==bus_id]) ==0:
-                breakpoint()
-            wye_flag = self.network.bus_df[self.\
-                                           network.bus_df['name']==\
-                                           bus_id]['connect'].values[0]=='Y'
-            for ph in range(asset_N_phases):
-                bus_ph_index = 3*(bus_number) + ph
-                if wye_flag is True:
-                    G_wye_nondispatch[bus_ph_index,i] = 1/asset_N_phases
-                else:
-                    G_del_nondispatch[bus_ph_index,i] = 1/asset_N_phases
-                #bus_ph_index = bus_ph_index + 1
-        #Set up Matrix linking energy storage assets to their bus and phase
-        print(f'creating G ES line 1244 in EnergySystem.py')
-        G_wye_ES = np.zeros([3*(N_buses-1),N_ES])
-        G_del_ES = np.zeros([3*(N_buses-1),N_ES])
-        for i in range(N_ES):
-            asset_N_phases = 1#all are single phase #self.storage_assets[i].phases.size
-            #print(self.storage_assets[i])
-            #print(self.storage_assets.keys())
-            bus_id = self.storage_assets['bus_id'][i]
-            bus_number = self.network.bus_df[self.network.bus_df['name']==bus_id]['number']
-            #bus_number = self.storage_assets[i]['bus_number']
-            # check if Wye connected
-            wye_flag = self.network.bus_df[self.network.bus_df['name']==bus_id]['connect'].values
-            if len(wye_flag)>0:
-                wye_flag = wye_flag[0]=='Y'
-            else: 
-                wye_flag = False
-            #es_bus_phases = self.storage_assets[i].phases
-            for ph in np.nditer([1]):#es_bus_phases
-                bus_ph_index = 3*bus_number + ph #3*(bus_id-1) + ph
-                if wye_flag is True:
-                    G_wye_ES[bus_ph_index,i] = 1/asset_N_phases
-                else:
-                    G_del_ES[bus_ph_index,i] = 1/asset_N_phases
-        G_wye_nondispatch_PQ = np.concatenate((G_wye_nondispatch,
-                                               G_wye_nondispatch),axis=0)
-        G_del_nondispatch_PQ = np.concatenate((G_del_nondispatch,
-                                               G_del_nondispatch),axis=0)
-        G_wye_ES_PQ = np.concatenate((G_wye_ES,G_wye_ES),axis=0)
-        G_del_ES_PQ = np.concatenate((G_del_ES,G_del_ES),axis=0)
+        #for i in range(N_nondispatch):
+        #    asset_N_phases = self.nondispatch_assets[i]['phase_number']
+        #    bus_id = self.nondispatch_assets[i]['bus_id']
+        #    bus_number = self.nondispatch_assets[i]['number']
+        #    # check if Wye connected
+        #    if len(self.network.bus_df[self.network.bus_df['name']==bus_id]) ==0:
+        #        breakpoint()
+        #    wye_flag = self.network.bus_df[self.\
+        #                                   network.bus_df['name']==\
+        #                                   bus_id]['connect'].values[0]=='Y'
+        #    for ph in range(asset_N_phases):
+        #        bus_ph_index = 3*(bus_number) + ph
+        #        if wye_flag is True:
+        #            G_wye_nondispatch[bus_ph_index,i] = 1/asset_N_phases
+        #        else:
+        #            G_del_nondispatch[bus_ph_index,i] = 1/asset_N_phases
+        #        #bus_ph_index = bus_ph_index + 1
+        ##Set up Matrix linking energy storage assets to their bus and phase
+        #print(f'creating G ES line 1244 in EnergySystem.py')
+        #G_wye_ES = np.zeros([3*(N_buses-1),N_ES])
+        #G_del_ES = np.zeros([3*(N_buses-1),N_ES])
+        #for i in range(N_ES):
+        #    asset_N_phases = 1#all are single phase #self.storage_assets[i].phases.size
+        #    #print(self.storage_assets[i])
+        #    #print(self.storage_assets.keys())
+        #    bus_id = self.storage_assets['bus_id'][i]
+        #    bus_number = self.network.bus_df[self.network.bus_df['name']==bus_id]['number']
+        #    #bus_number = self.storage_assets[i]['bus_number']
+        #    # check if Wye connected
+        #    wye_flag = self.network.bus_df[self.network.bus_df['name']==bus_id]['connect'].values
+        #    if len(wye_flag)>0:
+        #        wye_flag = wye_flag[0]=='Y'
+        #    else: 
+        #        wye_flag = False
+        #    #es_bus_phases = self.storage_assets[i].phases
+        #    for ph in np.nditer([1]):#es_bus_phases
+        #        bus_ph_index = 3*bus_number + ph #3*(bus_id-1) + ph
+        #        if wye_flag is True:
+        #            G_wye_ES[bus_ph_index,i] = 1/asset_N_phases
+        #        else:
+        #            G_del_ES[bus_ph_index,i] = 1/asset_N_phases
+        #G_wye_nondispatch_PQ = np.concatenate((G_wye_nondispatch,
+        #                                       G_wye_nondispatch),axis=0)
+        #G_del_nondispatch_PQ = np.concatenate((G_del_nondispatch,
+        #                                       G_del_nondispatch),axis=0)
+        #G_wye_ES_PQ = np.concatenate((G_wye_ES,G_wye_ES),axis=0)
+        #G_del_ES_PQ = np.concatenate((G_del_ES,G_del_ES),axis=0)
 
         print(f'setting up optimization variables line 1268')
         #######################################
@@ -1301,48 +1301,48 @@ class EnergySystem:
         #######################################
         ### STEP 2: set up linear power flow models
         #######################################
-        PF_networks_lin = []
-        P_lin_buses = np.zeros([T_mpc,N_buses,N_phases])
-        Q_lin_buses = np.zeros([T_mpc,N_buses,N_phases])
-        for t in range(T_mpc):
-            if 'network_t' not in self.__dict__.keys():
-                #Setup linear power flow model:
-                for i in range(N_nondispatch):
-                    #bus_id = self.nondispatch_assets[i]['bus_id']
-                    phases_i = self.nondispatch_assets[i]['phases']
-                    bus_number = self.nondispatch_assets[i]['number']
-                    if isinstance(phases_i, int):
-                        phases_i = [phases_i]
-                    for ph_i in phases_i:
-                        bus_ph_index = 3*bus_number + ph_i #3*(bus_id-1) + ph_i
-                        P_lin_buses[t,bus_number,ph_i] +=\
-                        (G_wye_nondispatch[bus_ph_index,i]+\
-                        G_del_nondispatch[bus_ph_index,i])*P_demand[t,i]
-                        Q_lin_buses[t,bus_number,ph_i] +=\
-                        (G_wye_nondispatch[bus_ph_index,i]+\
-                        G_del_nondispatch[bus_ph_index,i])*Q_demand[t,i]
-                #set up a copy of the network for MPC interval t
-                network_t = copy.deepcopy(self.network)
-                network_t.clear_loads()
-                for bus_id in range(N_buses):
-                    for ph_i in range(N_phases):
-                        Pph_t = P_lin_buses[t,bus_id,ph_i]
-                        Qph_t = Q_lin_buses[t,bus_id,ph_i]
-                        #add P,Q loads to the network copy
-                        network_t.set_load(bus_id,ph_i,Pph_t,Qph_t)
-                network_t.zbus_pf()
-                v_lin0 = network_t.v_net_res
-                S_wye_lin0 = network_t.S_PQloads_wye_res
-                S_del_lin0 = network_t.S_PQloads_del_res
-                print('setting up linear model')
-                network_t.linear_model_setup(v_lin0,S_wye_lin0,S_del_lin0)
-                # note that phases need to be 120degrees out for good results
-                print('running linear powerflow')
-                network_t.linear_pf()
-                self.network_t = network_t
-            else:
-                network_t = self.network_t
-            PF_networks_lin.append(network_t)
+        #PF_networks_lin = []
+        #P_lin_buses = np.zeros([T_mpc,N_buses,N_phases])
+        #Q_lin_buses = np.zeros([T_mpc,N_buses,N_phases])
+        #for t in range(T_mpc):
+        #if 'network_t' not in self.__dict__.keys():
+        #    #Setup linear power flow model:
+        #    for i in range(N_nondispatch):
+        #        #bus_id = self.nondispatch_assets[i]['bus_id']
+        #        phases_i = self.nondispatch_assets[i]['phases']
+        #        bus_number = self.nondispatch_assets[i]['number']
+        #        if isinstance(phases_i, int):
+        #            phases_i = [phases_i]
+        #        for ph_i in phases_i:
+        #            bus_ph_index = 3*bus_number + ph_i #3*(bus_id-1) + ph_i
+        #            P_lin_buses[t,bus_number,ph_i] +=\
+        #            (G_wye_nondispatch[bus_ph_index,i]+\
+        #            G_del_nondispatch[bus_ph_index,i])*P_demand[t,i]
+        #            Q_lin_buses[t,bus_number,ph_i] +=\
+        #            (G_wye_nondispatch[bus_ph_index,i]+\
+        #            G_del_nondispatch[bus_ph_index,i])*Q_demand[t,i]
+        #    #set up a copy of the network for MPC interval t
+        #    network_t = copy.deepcopy(self.network)
+        #    network_t.clear_loads()
+        #    for bus_id in range(N_buses):
+        #        for ph_i in range(N_phases):
+        #            Pph_t = P_lin_buses[t,bus_id,ph_i]
+        #            Qph_t = Q_lin_buses[t,bus_id,ph_i]
+        #            #add P,Q loads to the network copy
+        #            network_t.set_load(bus_id,ph_i,Pph_t,Qph_t)
+        #    network_t.zbus_pf()
+        #    v_lin0 = network_t.v_net_res
+        #    S_wye_lin0 = network_t.S_PQloads_wye_res
+        #    S_del_lin0 = network_t.S_PQloads_del_res
+        #    print('setting up linear model')
+        #    network_t.linear_model_setup(v_lin0,S_wye_lin0,S_del_lin0)
+        #    # note that phases need to be 120degrees out for good results
+        #    print('running linear powerflow')
+        #    network_t.linear_pf()
+        #    self.network_t = network_t
+        #else:
+        #    network_t = self.network_t
+        #PF_networks_lin.append(network_t)
 
         print('setting up constraints')
         #######################################
@@ -1352,41 +1352,41 @@ class EnergySystem:
         Asum = pic.new_param('Asum',np.tril(np.ones([T_mpc,T_mpc])))
 
         # energy storage asset constraints
-        #for i in range(N_ES):
-        #    # maximum power constraint
-        #    prob.add_constraint(P_ES[:,i] <=
-        #                        self.storage_assets[i].Pmax[T_range])
-        #    # minimum power constraint
-        #    prob.add_constraint(P_ES[:,i] >=
-        #                        self.storage_assets[i].Pmin[T_range])
-        #    # maximum energy constraint
-        #    prob.add_constraint(self.dt_ems * Asum * (P_ES_ch[:,i] -
-        #                                          P_ES_dis[:,i]) <=
-        #                        self.storage_assets[i].Emax[T_range] -
-        #                        self.storage_assets[i].E[t0_dt])
-        #    ## minimum energy constraint
-        #    prob.add_constraint(self.dt_ems * Asum * (P_ES_ch[:,i] -
-        #                                          P_ES_dis[:,i]) >=
-        #                        self.storage_assets[i].Emin[T_range] -
-        #                        self.storage_assets[i].E[t0_dt])
-        #    # final energy constraint
-        #    prob.add_constraint(self.dt_ems * Asum[T_mpc-1,:] * (P_ES_ch[:,i] -
-        #                        P_ES_dis[:,i]) + E_T_min[i] >=
-        #                        self.storage_assets[i].ET -
-        #                        self.storage_assets[i].E[t0_dt])
-        #
-        #    eff_opt = self.storage_assets[i].eff_opt
-        #    #P_ES_ch & P_ES_dis dummy variables
-        #    for t in range(T_mpc):
-        #        prob.add_constraint(P_ES[t,i] == P_ES_ch[t,i]/eff_opt -
-        #                            P_ES_dis[t,i] * eff_opt)
-        #        prob.add_constraint(P_ES_ch[t,i] >= 0)
-        #        prob.add_constraint(P_ES_dis[t,i] >= 0)
+        for i in range(N_ES):
+            # maximum power constraint
+            prob.add_constraint(P_ES[:,i] <=
+                                self.storage_assets[i].Pmax[T_range])
+            # minimum power constraint
+            prob.add_constraint(P_ES[:,i] >=
+                                self.storage_assets[i].Pmin[T_range])
+            # maximum energy constraint
+            prob.add_constraint(self.dt_ems * Asum * (P_ES_ch[:,i] -
+                                                  P_ES_dis[:,i]) <=
+                                self.storage_assets[i].Emax[T_range] -
+                                self.storage_assets[i].E[t0_dt])
+            ## minimum energy constraint
+            prob.add_constraint(self.dt_ems * Asum * (P_ES_ch[:,i] -
+                                                  P_ES_dis[:,i]) >=
+                                self.storage_assets[i].Emin[T_range] -
+                                self.storage_assets[i].E[t0_dt])
+            # final energy constraint
+            prob.add_constraint(self.dt_ems * Asum[T_mpc-1,:] * (P_ES_ch[:,i] -
+                                P_ES_dis[:,i]) + E_T_min[i] >=
+                                self.storage_assets[i].ET -
+                                self.storage_assets[i].E[t0_dt])
+        
+            eff_opt = self.storage_assets[i].eff_opt
+            #P_ES_ch & P_ES_dis dummy variables
+            for t in range(T_mpc):
+                prob.add_constraint(P_ES[t,i] == P_ES_ch[t,i]/eff_opt -
+                                    P_ES_dis[t,i] * eff_opt)
+                prob.add_constraint(P_ES_ch[t,i] >= 0)
+                prob.add_constraint(P_ES_dis[t,i] >= 0)
         
         # EVSE energy storage constraints
         print(f'adding evse constraints')
         prob.add_constraint(P_EVSE <= np.ones((T_mpc,1)) * np.array(self.evse_assets['Pmax']))
-        prob.add_constraint(P_EVSE >= np.zeros((T_mpc, N_EVSE)))
+        prob.add_constraint(P_EVSE >= np.zeros((T_mpc, N_EVSE))) # unidirectional charging
         # c * TxN' * Tx1 .* Nx1  -> Nx1 >= NxT * Tx1 -> Nx1
         #prob.add_constraint(self.dt_ems * np.matmul(P_EVSE,np.ones((T_mpc,1))) *np.array(self.evse_assets['eff_opt']).reshape((N_EVSE,1)) >= np.matmul((np.array(self.evse_assets['ET']) - np.array(self.evse_assets['E0'])),np.ones((T_mpc,1))))
         for i, evse_i in self.evse_assets.iterrows():
@@ -1399,7 +1399,7 @@ class EnergySystem:
             # minimum power constraint
             #prob.add_constraint(P_EVSE[:,i] >= 0)
             # minimum energy constraint P*dt >= ET-E0 where ET and E0 are timeseries
-            prob.add_constraint(self.dt_ems * P_EVSE[:,i] * eff_opt >= evse_i['ET'] - evse_i['E0'])
+            prob.add_constraint(self.dt_ems * Asum * P_EVSE[:,i] * eff_opt >= evse_i['ET'] - evse_i['E0']) # this needs the asum
 
         #import/export constraints
         print('adding import export constraints')
@@ -1421,14 +1421,14 @@ class EnergySystem:
         # Network constraints
         print('adding network constraints')
         for t in range(T_mpc):
-            network_t = PF_networks_lin[t]
-            # Note that linear power flow matricies are in units of W (not kW)
-            PQ0_wye = np.concatenate((np.real(network_t.S_PQloads_wye_res),\
-                                      np.imag(network_t.S_PQloads_wye_res)))\
-                                      *1e3
-            PQ0_del = np.concatenate((np.real(network_t.S_PQloads_del_res),\
-                                      np.imag(network_t.S_PQloads_del_res)))\
-                                      *1e3
+            #network_t = PF_networks_lin[t]
+            ## Note that linear power flow matricies are in units of W (not kW)
+            #PQ0_wye = np.concatenate((np.real(network_t.S_PQloads_wye_res),\
+            #                          np.imag(network_t.S_PQloads_wye_res)))\
+            #                          *1e3
+            #PQ0_del = np.concatenate((np.real(network_t.S_PQloads_del_res),\
+            #                          np.imag(network_t.S_PQloads_del_res)))\
+            #                          *1e3
             #A_Pslack = (np.matmul\
             #            (np.real(np.matmul\
             #                     (network_t.vs.T,\
@@ -1441,30 +1441,33 @@ class EnergySystem:
             #                       np.matmul(np.conj(network_t.Ysn),\
             #                                 np.conj(network_t.M_del)))),\
             #                          G_del_ES_PQ))
-            b_Pslack =  np.real(np.matmul\
-                                (network_t.vs.T,\
-                                 np.matmul(np.conj\
-                                           (network_t.Ysn),\
-                                           np.matmul(np.conj\
-                                                     (network_t.M_wye),\
-                                                     PQ0_wye))))\
-                        +np.real(np.matmul\
-                                 (network_t.vs.T,\
-                                  np.matmul(np.conj\
-                                            (network_t.Ysn),\
-                                            np.matmul(np.conj\
-                                                      (network_t.M_del),
-                                                      PQ0_del))))\
-                        +np.real(np.matmul\
-                                 (network_t.vs.T,\
-                                  (np.matmul(np.conj\
-                                             (network_t.Yss),\
-                                             np.conj(network_t.vs))\
-                                 + np.matmul(np.conj\
-                                             (network_t.Ysn),\
-                                             np.conj(network_t.M0)))))
+            #b_Pslack =  np.real(np.matmul\
+            #                    (network_t.vs.T,\
+            #                     np.matmul(np.conj\
+            #                               (network_t.Ysn),\
+            #                               np.matmul(np.conj\
+            #                                         (network_t.M_wye),\
+            #                                         PQ0_wye))))\
+            #            +np.real(np.matmul\
+            #                     (network_t.vs.T,\
+            #                      np.matmul(np.conj\
+            #                                (network_t.Ysn),\
+            #                                np.matmul(np.conj\
+            #                                          (network_t.M_del),
+            #                                          PQ0_del))))\
+            #            +np.real(np.matmul\
+            #                     (network_t.vs.T,\
+            #                      (np.matmul(np.conj\
+            #                                 (network_t.Yss),\
+            #                                 np.conj(network_t.vs))\
+            #                     + np.matmul(np.conj\
+            #                                 (network_t.Ysn),\
+            #                                 np.conj(network_t.M0)))))
             # net import variables
-            prob.add_constraint(P_import[t]-P_export[t] == b_Pslack/1e3)
+            if N_ES>0:
+                prob.add_constraint(P_import[t]-P_export[t] == sum(P_EVSE[t,:]) + b_Pslack/1e3)
+            else: 
+                prob.add_constraint(P_import[t]-P_export[t] == sum(P_EVSE[t,:]) + b_Pslack/1e3)
             #(np.sum(A_Pslack[i]*P_ES[t,i]\
             #*1e3 for i in range(N_ES))\
 
