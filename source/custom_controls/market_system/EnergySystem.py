@@ -1573,10 +1573,10 @@ class EnergySystem:
         #######################################
         ### STEP 5: solve the optimisation
         #######################################
-        print('*** SOLVING THE OPTIMISATION PROBLEM ***')
-        prob.solve(verbose = 2, solver='glpk')
+        #print('*** SOLVING THE OPTIMISATION PROBLEM ***')
+        prob.solve(verbose = 0, solver='glpk')
         #prob.solve(verbose = 0)
-        print('*** OPTIMISATION COMPLETE ***')
+        #print('*** OPTIMISATION COMPLETE ***')
         if N_ES>0:
             P_ES_val = np.matrix(P_ES.value)
         else:

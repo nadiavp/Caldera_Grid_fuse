@@ -179,7 +179,6 @@ class LPMarketController():
             evse_assets['Pmax'][se_iter] = max_evse
             # assume there is more than one
             pev_battery_sizes = [0]
-            print(f'ces at se {len(ce_at_se)}')
             for _, ce_i in ce_at_se.iterrows():
                 ev_battery_size = ev_df[ev_df['EV_type'] == ce_i['pev_type']]['usable_battery_size_kWh'].item()
                 pev_battery_sizes.append(ev_battery_size)
