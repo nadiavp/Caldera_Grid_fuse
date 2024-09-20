@@ -225,7 +225,9 @@ class LPMarketController():
                 nda['number'] = self.bus_df[self.bus_df['name']==nda['bus_id']]['number'][0]
         bus_id_market = 0 # all buses have the same market, so this identifier can be 0
 
-        self.network = Network_3ph(self.feeder_name)
+        self.network = Network_3ph('')
+        self.network.N_buses = len(self.bus_df)
+        self.network.N_phases = 3
         # the market prices need to be interpolated to match the timestep of the optimization
         timesteps_market = [i*ts_market for i in range(len(prices_import))]
         timesteps_opt = [i*ts for i in range(n_timesteps)]

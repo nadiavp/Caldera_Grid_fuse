@@ -704,7 +704,7 @@ class EnergySystem:
         #            self.nondispatch_assets[i]['Qnet']/N_phases_i
         #Store power flow results as a list of network objects
 
-        PF_network_res = self.network
+        PF_network_res = []#self.network
         #in co-simulation, you don't need to simulate the network here. Opendss will take care of it
         #print('*** SIMULATING THE NETWORK ***')
         #for t in range(self.n_timesteps):

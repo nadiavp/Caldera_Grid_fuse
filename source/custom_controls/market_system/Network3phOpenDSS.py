@@ -211,8 +211,8 @@ class Network_3ph():
         self.N_phases = 3
         
 
-        self.loadDssNetwork(feeder_name,updateYZ=False,testModel=False,
-                            testPlot=False)
+        #self.loadDssNetwork(feeder_name,updateYZ=False,testModel=False,
+        #                    testPlot=False)
              
         #self.update_YandZ() #setup the Z and Y bus matricies
         #set bus voltage and line current limits
