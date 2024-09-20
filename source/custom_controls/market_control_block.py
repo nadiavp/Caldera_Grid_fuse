@@ -93,6 +93,7 @@ class LPMarketController():
             open(day_ahead_path_string, 'r')
             DA_LMP_hourly_2022 = pd.read_csv(day_ahead_path_string)
             start_lmp_index = DA_LMP_hourly_2022.index[DA_LMP_hourly_2022['Time'] == '2022-09-02 00:00:00-04:00'].tolist()[0]
+            start_lmp_index = start_lmp_index + int(np.floor(self.start_time_sec/ts))
             end_lmp_index = start_lmp_index + int(hs_market/ts_market) - 1
             if self.name == "TOU_withoutV":            
                 #prices_import = [[0.2]]* n_timesteps
@@ -245,59 +246,64 @@ class LPMarketController():
         ts = self.timestep_sec
         start_time = self.start_time_sec
         i_timestep = int(np.floor((federate_time-start_time)/ts))
-
-        # first get the updated grid status
-        #voltages = json.loads(h.helicsInputGetString(self.subscriptions[0]))
-        #currents = json.loads(h.helicsInputGetString(self.subscriptions[1]))
     
-        #non_disp_loads = json.loads(h.helicsInputGetString(self.subscriptions[2]))
-        # update the non dispatchable asset loads
-        self.nondispatch_assets.loc['Pnet'] = self.nondispatch_assets['Pnet_pred']
-        self.nondispatch_assets.loc['Qnet'] = self.nondispatch_assets['Qnet_pred']
-        if OpenDSS_message_types.get_basenetloads in DSS_state_info_dict.keys():
-            non_disp_loads = DSS_state_info_dict[OpenDSS_message_types.get_basenetloads]
-            for busname_i in non_disp_loads.keys():
-                self.nondispatch_assets.loc[self.nondispatch_assets['bus_id']==busname_i,['Pnet_pred']] = non_disp_loads[busname_i][0]
-                self.nondispatch_assets.loc[self.nondispatch_assets['bus_id']==busname_i,['Qnet_pred']] = non_disp_loads[busname_i][1]
-        #for i_nda in range(len(self.nondispatch_assets)):
-        #    busname_i = self.nondispatch_assets.loc[i_nda,'bus_id']
-        #    self.nondispatch_assets.loc[i_nda, 'Pnet_pred'] = self.nondispatch_assets[i_nda, 'Pnet']
-        #    self.nondispatch_assets[i_nda].Qnet_pred = self.nondispatch_assets[i_nda, 'Qnet']
-        #    self.nondispatch_assets[i_nda].Pnet = non_disp_loads[busname_i][0]
-        #    self.nondispatch_assets[i_nda].Qnet = non_disp_loads[busname_i][1]
-        # update energy system with new asset loads
-        nda_list = self.nondispatch_assets
-        nda_list = nda_list.to_dict('records')
-        #self.energy_system = EnergySystem(self.storage_assets, nda_list, self.network, self.market, ts, hs, ts, hs)
+        if i_timestep == 0:
 
-        network = self.network
-        network.N_phases = 1
-        network.N_buses = 1
-        self.energy_system.network = network
-        i_line_unconst_list = []#list(range(network.N_lines))   
-        v_bus_unconst_list = [] # no voltage constraints 
-        t0 = int(np.floor((federate_time-start_time)/self.energy_system.dt))
+            # first get the updated grid status
+            #voltages = json.loads(h.helicsInputGetString(self.subscriptions[0]))
+            #currents = json.loads(h.helicsInputGetString(self.subscriptions[1]))
+        
+            #non_disp_loads = json.loads(h.helicsInputGetString(self.subscriptions[2]))
+            # update the non dispatchable asset loads
+            self.nondispatch_assets.loc['Pnet'] = self.nondispatch_assets['Pnet_pred']
+            self.nondispatch_assets.loc['Qnet'] = self.nondispatch_assets['Qnet_pred']
+            if OpenDSS_message_types.get_basenetloads in DSS_state_info_dict.keys():
+                non_disp_loads = DSS_state_info_dict[OpenDSS_message_types.get_basenetloads]
+                for busname_i in non_disp_loads.keys():
+                    self.nondispatch_assets.loc[self.nondispatch_assets['bus_id']==busname_i,['Pnet_pred']] = non_disp_loads[busname_i][0]
+                    self.nondispatch_assets.loc[self.nondispatch_assets['bus_id']==busname_i,['Qnet_pred']] = non_disp_loads[busname_i][1]
+            #for i_nda in range(len(self.nondispatch_assets)):
+            #    busname_i = self.nondispatch_assets.loc[i_nda,'bus_id']
+            #    self.nondispatch_assets.loc[i_nda, 'Pnet_pred'] = self.nondispatch_assets[i_nda, 'Pnet']
+            #    self.nondispatch_assets[i_nda].Qnet_pred = self.nondispatch_assets[i_nda, 'Qnet']
+            #    self.nondispatch_assets[i_nda].Pnet = non_disp_loads[busname_i][0]
+            #    self.nondispatch_assets[i_nda].Qnet = non_disp_loads[busname_i][1]
+            # update energy system with new asset loads
+            nda_list = self.nondispatch_assets
+            nda_list = nda_list.to_dict('records')
+            #self.energy_system = EnergySystem(self.storage_assets, nda_list, self.network, self.market, ts, hs, ts, hs)
 
-        # run the optimization for each bus
-        for bus_i in self.bus_df['name']:
-            evse_bus_i = self.evse_assets[self.evse_assets['bus_id']==bus_i] # the evse at bus_i
-            if len(evse_bus_i)>0:
-                if sum(sum(evse_bus_i['ET']))>0:
-                    #print(f'running opt for {evse_bus_i}')
-                    self.energy_system = EnergySystem(nda_list, self.network, self.market, ts, hs, ts, hs, evse_assets=evse_bus_i)
-                    #print(f'energy_system.evse_assets in market_control_block {self.energy_system.evse_assets}')
+            network = self.network
+            network.N_phases = 1
+            network.N_buses = 1
+            self.energy_system.network = network
+            i_line_unconst_list = []#list(range(network.N_lines))   
+            v_bus_unconst_list = [] # no voltage constraints 
+            t0 = int(np.floor((federate_time-start_time)/self.energy_system.dt))
 
-                    EMS_output = self.energy_system.simulate_network_3phPF('3ph',\
-                                                i_unconstrained_lines=\
-                                                i_line_unconst_list,\
-                                                v_unconstrained_buses=\
-                                                v_bus_unconst_list, t0=t0)  
-                    i_es = 0
-                    for se_id in evse_bus_i['SE_id']:                                              
-                        ev_control_setpoints[se_id] = EMS_output['P_EVSE_ems'][i_timestep, i_es]                       
-                        i_es = i_es+1
-        #pickle.dump(EMS_output, open(join(EMS_path_string, normpath('Month' + str(Case_Month) + '_Day' + str(day) + '_EMS_output_' + str(x) + '.p')), "wb"))    
+            # run the optimization for each bus
+            for bus_i in self.bus_df['name']:
+                evse_bus_i = self.evse_assets[self.evse_assets['bus_id']==bus_i] # the evse at bus_i
+                if len(evse_bus_i)>0:
+                    if sum(sum(evse_bus_i['ET']))>0:
+                        #print(f'running opt for {evse_bus_i}')
+                        self.energy_system = EnergySystem(nda_list, self.network, self.market, ts, hs, ts, hs, evse_assets=evse_bus_i)
+                        #print(f'energy_system.evse_assets in market_control_block {self.energy_system.evse_assets}')
 
+                        EMS_output = self.energy_system.simulate_network_3phPF('3ph',\
+                                                    i_unconstrained_lines=\
+                                                    i_line_unconst_list,\
+                                                    v_unconstrained_buses=\
+                                                    v_bus_unconst_list, t0=t0)  
+                        i_es = 0
+                        for se_id in evse_bus_i['SE_id']:                                              
+                            ev_control_setpoints[se_id] = EMS_output['P_EVSE_ems'][:, i_es]                       
+                            i_es = i_es+1
+            self.control_setpoints = ev_control_setpoints
+            #pickle.dump(EMS_output, open(join(EMS_path_string, normpath('Month' + str(Case_Month) + '_Day' + str(day) + '_EMS_output_' + str(x) + '.p')), "wb"))    
+        ev_control_setpoints_t = {}
+        for se_id in self.control_setpoints.keys():
+            ev_control_setpoints_t[se_id] = self.control_setpoints[se_id][i_timestep]
         #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ EMS Result post-processing and Analysis~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Step 1:  Extract the original EMS results  
         #PF_network_res = EMS_output['PF_network_res']
@@ -312,5 +318,5 @@ class LPMarketController():
         #    ev_control_setpoints[SE_id] = P_EVSE_ems[i_timestep,i_es]#P_import_ems[load_name] - P_export_ems[load_name]
         #   i_es = i_es+1
         #print(f'updating setpoints line 219 market_control_block {ev_control_setpoints}')
-        self.control_setpoints = ev_control_setpoints
-        return ev_control_setpoints
+
+        return ev_control_setpoints_t

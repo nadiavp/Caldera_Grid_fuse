@@ -1401,8 +1401,8 @@ class EnergySystem:
             #                    evse_i['Pmax'])
             # minimum power constraint
             #prob.add_constraint(P_EVSE[:,i] >= 0)
-            # minimum energy constraint P*dt >= ET-E0 where ET and E0 are timeseries
-            prob.add_constraint(self.dt_ems * Asum * P_EVSE[:,evse_iter] * eff_opt >= evse_i['ET'] - evse_i['E0']) # this needs the asum
+            # minimum energy constraint P*dt >= ET-E0 where ET and E0 are timeseries self.dt_ems * Asum * P_EVSE[:,evse_iter]
+            prob.add_constraint(sum(self.dt_ems * P_EVSE[:,evse_iter] * eff_opt) >= sum(evse_i['ET'] - evse_i['E0'])) # this needs the asum
             evse_iter = evse_iter+1
 
         #import/export constraints
@@ -1469,7 +1469,7 @@ class EnergySystem:
             #                                 np.conj(network_t.M0)))))
             # net import variables
             if N_ES>0:
-                prob.add_constraint(P_import[t]-P_export[t] == sum(P_EVSE[t,:]))# + b_Pslack/1e3)
+                prob.add_constraint(P_import[t]-P_export[t] == sum(P_ES[t,:]))# + b_Pslack/1e3)
             else: 
                 prob.add_constraint(P_import[t]-P_export[t] == sum(P_EVSE[t,:]))# + b_Pslack/1e3)
             #(np.sum(A_Pslack[i]*P_ES[t,i]\
