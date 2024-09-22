@@ -36,7 +36,7 @@ class LPMarketController():
         print(f'dss_file_name in market_control_block: {dss_file_name}')
         #src_df, bus_df, load_df, line_df, solution_df, Ybus = dssConvert(feeder_name,dss_file_name)
         #self.src_df = src_df # voltage sources on opendss model
-        dss.Command(f'Redirect {dss_file_name}')
+        dss.run_command(f'Redirect {dss_file_name}')
         LoadColumns = ["name","number","bus_name","connect","P","Q","phase_number","phase"]
         Load_names = dss.Loads.AllNames()
         #load_df = pd.DataFrame(data=np.zeros((nLoads,len(LoadColumns))), index=Load_names, columns=LoadColumns)
