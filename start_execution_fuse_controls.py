@@ -171,7 +171,7 @@ if __name__ == '__main__':
     if args["end_time_sec"] != None:
         end_simulation_unix_time = int(args["end_time_sec"])
     else:
-        end_simulation_unix_time = 151*3600
+        end_simulation_unix_time = 150.5*3600
 
     # The flag to use or not use OpenDSS
     if args["use_opendss"] != None and ( (isinstance(args["use_opendss"], str) and args["use_opendss"].lower() == "true") or args["use_opendss"] == True ):
@@ -192,17 +192,17 @@ if __name__ == '__main__':
     #---------------------
     print(f'ensure_pev_charge_needs_met_for_ext_control_strategy: {ensure_pev_charge_needs_met_for_ext_control_strategy}')
     
+    ## P added 
+    # feeder folders should be inside opendss folder
+    feeder_name = 'Mercury_22370' # 'Hanover_01385' # 'Hanover_01359' # 'Mercury_22370' # "ieee34"
+    scenario_name = "Day-ahead" # "uncontrolled"
+    
     # The full path to Master dss file
     if args["dss_full_path"] != None:
         dss_full_path = args["dss_full_path"]
     else:
-        dss_full_path = os.path.join(path_to_here, 'opendss', 'Hanover_01359', 'Master.dss') # TODO
+        dss_full_path = os.path.join(path_to_here, 'opendss', feeder_name, 'Master.dss') # TODO
     print('OpenDSS master file full path:', dss_full_path)
-    
-    ## P added 
-    # feeder folders should be inside opendss folder
-    feeder_name = 'Hanover_01385' # 'Hanover_01359' # 'Mercury_22370' # "ieee34"
-    scenario_name = "Day-ahead" # "uncontrolled"
     
     
     start_simulation_unix_time = int(start_simulation_unix_time)
