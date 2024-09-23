@@ -165,13 +165,13 @@ if __name__ == '__main__':
     if args["start_time_sec"] != None:
         start_simulation_unix_time = int(args["start_time_sec"])
     else:
-        start_simulation_unix_time = 60*60*6 #120
+        start_simulation_unix_time = 60*60* 77.75 # starting at 6 am (but 1 timestep ahead) on Thursday (4th day of EV DATA) #120
     
     # Set the end time.
     if args["end_time_sec"] != None:
         end_simulation_unix_time = int(args["end_time_sec"])
     else:
-        end_simulation_unix_time = 24*3600*3
+        end_simulation_unix_time = 151*3600
 
     # The flag to use or not use OpenDSS
     if args["use_opendss"] != None and ( (isinstance(args["use_opendss"], str) and args["use_opendss"].lower() == "true") or args["use_opendss"] == True ):
@@ -198,6 +198,12 @@ if __name__ == '__main__':
     else:
         dss_full_path = os.path.join(path_to_here, 'opendss', 'Hanover_01359', 'Master.dss') # TODO
     print('OpenDSS master file full path:', dss_full_path)
+    
+    ## P added 
+    # feeder folders should be inside opendss folder
+    feeder_name = 'Hanover_01385' # 'Hanover_01359' # 'Mercury_22370' # "ieee34"
+    scenario_name = "Day-ahead" # "uncontrolled"
+    
     
     start_simulation_unix_time = int(start_simulation_unix_time)
     end_simulation_unix_time = int(end_simulation_unix_time)
@@ -234,13 +240,15 @@ if __name__ == '__main__':
     io_dir.base_dir = caldera_grid_proj_dir
     io_dir.inputs_dir = os.path.join( working_dir, input_path )
     io_dir.outputs_dir = os.path.join( working_dir, output_path )
+    io_dir.feeder_name = feeder_name
+    io_dir.scenario_name = scenario_name
     
     if not os.path.exists(io_dir.inputs_dir):
         print("Input directory does not exist", io_dir.inputs_dir)
         exit()
         
-    shutil.rmtree(io_dir.outputs_dir, ignore_errors=True)
-    os.makedirs(io_dir.outputs_dir, exist_ok=True)
+    # shutil.rmtree(io_dir.outputs_dir, ignore_errors=True) #P commented
+    # os.makedirs(io_dir.outputs_dir, exist_ok=True)
     
     #---------------------
     
@@ -316,10 +324,10 @@ if __name__ == '__main__':
     #simulation_time_constraints.end_simulation_unix_time = end_simulation_unix_time
     #simulation_time_constraints.grid_timestep_sec = grid_timestep_sec
     print(f'optimization horizon is {horizon_sec}')
-    opendss_file_to_site_storage='../opendss/Hanover_01359/Master.dss' #'../opendss/Shellbank_22700/Master.dss'
+    opendss_file_to_site_storage='../opendss/' + feeder_name + '/Master.dss' #'../opendss/Shellbank_22700/Master.dss'
     print(opendss_file_to_site_storage) # switch name of CS_M_obj to "LMP_dayahead"
-    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_longdwell_Sep_Hanover_01359.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv'
-        name='LMP_dayahead', helics_config_path=json_config_file_name, feeder_name='Hanover_01359', input_ce_csv='inputs/CE_longdwell_Sep_Hanover_01359.csv') #
+    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_longdwell_Sep_' + feeder_name + '.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv'
+        name='LMP_dayahead', helics_config_path=json_config_file_name, feeder_name=feeder_name, input_ce_csv='inputs/CE_longdwell_Sep_' + feeder_name + '.csv') # "emissions"
     p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='market_control_federate')
     processes.append(p)
 
