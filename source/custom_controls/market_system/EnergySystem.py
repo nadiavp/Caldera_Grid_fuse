@@ -1297,7 +1297,9 @@ class EnergySystem:
         # (positive) maximum demand dummy variable
         P_max_demand = prob.add_variable('P_max_demand',
                                          1, vtype='continuous')
-
+        # slack variable with high cost to assure convergence
+        b_Pslack = prob.add_variable('b_Pslack',
+                                     (T_mpc,1), vtype='continuous')
         #print('setting up linear power flow models')
         #######################################
         ### STEP 2: set up linear power flow models
@@ -1386,25 +1388,43 @@ class EnergySystem:
         
         # EVSE energy storage constraints
         #print(f'adding evse constraints')
-        prob.add_constraint(P_EVSE <= np.ones((T_mpc,1)) * np.array(self.evse_assets['Pmax']))
         prob.add_constraint(P_EVSE >= np.zeros((T_mpc, N_EVSE))) # unidirectional charging
+        #prob.add_constraint(P_EVSE <= np.ones((T_mpc, 1))*np.array(self.evse_assets['Pmax']))
         # c * TxN' * Tx1 .* Nx1  -> Nx1 >= NxT * Tx1 -> Nx1
         #prob.add_constraint(self.dt_ems * np.matmul(P_EVSE,np.ones((T_mpc,1))) *np.array(self.evse_assets['eff_opt']).reshape((N_EVSE,1)) >= np.matmul((np.array(self.evse_assets['ET']) - np.array(self.evse_assets['E0'])),np.ones((T_mpc,1))))
         evse_iter = 0
+        time_plugged_in = np.zeros((T_mpc, 1))
+        #print(f'adding: {len(self.evse_assets)} evse')
         for _, evse_i in self.evse_assets.iterrows():
             #print(f'adding end energy constraint for {evse_iter}th evse: {evse_i}')
             eff_opt = evse_i['eff_opt']
             # tstart = evse_i['']
             # tend = evse_i['']
             # maximum power constraint
-            #prob.add_constraint(P_EVSE[:,i] <=
-            #                    evse_i['Pmax'])
+            prob.add_constraint(P_EVSE[:,evse_iter] <= evse_i['Pmax'])
             # minimum power constraint
-            #prob.add_constraint(P_EVSE[:,i] >= 0)
+            #prob.add_constraint(P_EVSE[:,evse_iter] >= 0)
             # minimum energy constraint P*dt >= ET-E0 where ET and E0 are timeseries self.dt_ems * Asum * P_EVSE[:,evse_iter]
-            prob.add_constraint(sum(self.dt_ems * P_EVSE[:,evse_iter] * eff_opt) >= sum(evse_i['ET'] - evse_i['E0'])) # this needs the asum
+            #prob.add_constraint(self.dt_ems * eff_opt * Asum * P_EVSE[:,evse_iter] >= evse_i['ET'] - evse_i['E0']) # this needs the asum
+            # set P_EVSE to 0 for all times when not plugged in
+            #evse_start_t = evse_i['E0'].nonzero()[1][0]
+            #print(f'evse_i[et]-[e0] {evse_i["ET"]} \n E0 {evse_i["E0"]}')
+            #if evse_start_t>0:
+            #    prob.add_constraint(P_EVSE[:evse_start_t, evse_iter] == 0) # before anything plugged, don't charge
+            #evse_end_t = evse_i['ET'].nonzero()[1][-1]
+            #if evse_end_t +1 < T_mpc:
+            #    prob.add_constraint(P_EVSE[evse_end_t+1:,evse_iter] == 0)# after unplug, don't charge
+            #time_plugged = []
+            # if nothing is plugged, can't charge
+            #for t in range(T_mpc):
+            #    if evse_i['ET'][t,0] == 0:
+            #        prob.add_constraint(P_EVSE[t,evse_iter] == 0)
+            #prob.add_constraint(P_EVSE[:,evse_iter] <= evse_i['ET']*10e5)
+            prob.add_constraint(self.dt_ems * Asum * P_EVSE[:,evse_iter] * evse_i['eff_opt'] >= evse_i['ET']-evse_i['E0'])
             evse_iter = evse_iter+1
 
+        #prob.add_constraint(P_EVSE <= np.ones((T_mpc,1)) * np.array(self.evse_assets['Pmax']))
+        #prob.add_constraint(P_EVSE <= time_plugged_in * np.array(self.evse_assets['Pmax']))
         #import/export constraints
         #print('adding import export constraints')
         for t in range(T_mpc):
@@ -1471,7 +1491,7 @@ class EnergySystem:
             if N_ES>0:
                 prob.add_constraint(P_import[t]-P_export[t] == sum(P_ES[t,:]))# + b_Pslack/1e3)
             else: 
-                prob.add_constraint(P_import[t]-P_export[t] == sum(P_EVSE[t,:]))# + b_Pslack/1e3)
+                prob.add_constraint(P_import[t] == sum(P_EVSE[t,:])) # + b_Pslack[t]/1e3)
             #(np.sum(A_Pslack[i]*P_ES[t,i]\
             #*1e3 for i in range(N_ES))\
 
@@ -1567,8 +1587,7 @@ class EnergySystem:
             prob.set_objective('min', self.market.demand_charge*\
                             (P_max_demand+P_max_demand_pre_t0) +
                             sum(self.dt_ems*prices_import[t0+t]*P_import[t]\
-                                - self.dt_ems*prices_export[t0+t]*P_export[t]
-                                for t in range(T_mpc))) #+ 10e6*b_Pslack
+                                for t in range(T_mpc))) #+ 10e3*b_Pslack[t] 
 
         #######################################
         ### STEP 5: solve the optimisation
@@ -1584,7 +1603,8 @@ class EnergySystem:
         if N_EVSE>0:
             P_EVSE_val = np.matrix(P_EVSE.value)
             #print(f'P_EVSE_val from EnergySystem Optimization: {P_EVSE_val}')
-            print(f'total EVSE power: {sum(sum(P_EVSE_val))}')
+            print(f'EVSE limits set to {P_EVSE_val[P_EVSE_val.nonzero()[0],0]} at indexes {P_EVSE_val.nonzero()[0]}')
+            #print(f'total EVSE power: {P_EVSE_val}')
         else:
             P_EVSE_val = []
         P_import_val = np.matrix(P_import.value)

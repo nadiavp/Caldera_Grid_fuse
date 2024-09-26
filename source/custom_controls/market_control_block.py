@@ -93,7 +93,7 @@ class LPMarketController():
             open(day_ahead_path_string, 'r')
             DA_LMP_hourly_2022 = pd.read_csv(day_ahead_path_string)
             start_lmp_index = DA_LMP_hourly_2022.index[DA_LMP_hourly_2022['Time'] == '2022-09-02 00:00:00-04:00'].tolist()[0]
-            start_lmp_index = start_lmp_index + int(np.floor(self.start_time_sec/ts))
+            start_lmp_index = start_lmp_index + int(np.floor(self.start_time_sec/ts_market))
             end_lmp_index = start_lmp_index + int(hs_market/ts_market) - 1
             if self.name == "TOU_withoutV":            
                 #prices_import = [[0.2]]* n_timesteps
@@ -115,6 +115,7 @@ class LPMarketController():
         elif self.name in emissions_based_control_names:
             # for the emissions based control, read from a csv
             # and then scale to be similar to typical (divide by 100)
+            # emissions are given hourly
             demand_charge = 0
             carbon_file_path = os.path.join(os.getcwd(), 'inputs', 'market_prices', "Cambium23_MidCase_hourly_PJM_East_2030_srmer_co2e.csv")
             carbon_df = pd.read_csv(carbon_file_path)
@@ -126,12 +127,14 @@ class LPMarketController():
             carbon_df['month'] = carbon_df['timestamp'].dt.month
             carbon_df['day'] = carbon_df['timestamp'].dt.day
             carbon_df['hour'] = carbon_df['timestamp'].dt.hour
+            ts_market = (carbon_df['hour'].values[1] - carbon_df['hour'].values[0])*3600
             # get data for Sept 2, 2030
             carbon_df = carbon_df[carbon_df['month']==9]
-            carbon_df = carbon_df[carbon_df['day']==2]
-            prices_import = carbon_df['srmer_co2e'].values
+            carbon_df = carbon_df.reset_index(drop=True)
+            start_emission_index = carbon_df.index[carbon_df['day']==2].tolist()[0]+int(self.start_time_sec/3600)
+            end_emission_index = start_emission_index + int(np.floor(hs/ts_market))
+            prices_import = carbon_df['srmer_co2e'].iloc[start_emission_index:end_emission_index]
             # get the timestep and horizon for the carbon values
-            ts_market = (carbon_df['hour'].values[1] - carbon_df['hour'].values[0])*3600
             hs_market = ts*len(prices_import)
         else: #self.name == 'greedy':
             prices_import = [[0.1]]* n_timesteps #[]
@@ -181,24 +184,25 @@ class LPMarketController():
             # assume there is more than one
             pev_battery_sizes = [0]
             for _, ce_i in ce_at_se.iterrows():
-                ev_battery_size = ev_df[ev_df['EV_type'] == ce_i['pev_type']]['usable_battery_size_kWh'].item()
+                ev_battery_size = ev_df[ev_df['EV_type'] == ce_i['pev_type']]['usable_battery_size_kWh'].item()*3600 # convert to kJ from kWh
                 pev_battery_sizes.append(ev_battery_size)
                 start_charge = ce_i['soc_i']*ev_battery_size
                 end_charge = ce_i['soc_f']*ev_battery_size
                 start_timestep = int(np.floor((ce_i['start_time'] * 3600 - self.start_time_sec)/ ts)) # convert from hours to timestep index
-                end_timestep = int(np.floor((ce_i['end_time_chg'] * 3600 - self.start_time_sec) / ts))
+                end_timestep = int(np.ceil((ce_i['end_time_chg'] * 3600 - self.start_time_sec) / ts))
                 # figure out the minimum you need to charge
                 # if your charge session ends beyond the horizon, calc the actual end charge energy for end of horizon
-                if end_timestep <0 or start_timestep > n_timesteps:
+                if end_timestep <0 or start_timestep >= n_timesteps:
                     # if the end time is before the simulation start time, then don't include this in the sim
                     continue 
                 if end_timestep >= n_timesteps:
                     end_charge = max(0, end_charge - (end_timestep - n_timesteps) * max_evse)
                     end_timestep = n_timesteps - 1
-                evse_assets['E0'][se_iter][start_timestep,0]= start_charge
-                evse_assets['ET'][se_iter][end_timestep,0]= end_charge #final_energy_i
+                evse_assets['E0'][se_iter][start_timestep:end_timestep,0] = evse_assets['E0'][se_iter][start_timestep:end_timestep,0] + start_charge
+                evse_assets['ET'][se_iter][start_timestep:end_timestep,0] = evse_assets['ET'][se_iter][start_timestep:end_timestep,0] + start_charge
+                evse_assets['ET'][se_iter][end_timestep,0] = evse_assets['ET'][se_iter][end_timestep,0] + end_charge #final_energy_i
                 #print(f'start_timestep {start_timestep} start_charge {start_charge} vs {sum(sum(evse_assets["E0"][se_iter]))}')
-                #print(f'end_timestep: {end_timestep} end_charge: {end_charge} vs {sum(sum(evse_assets["ET"][se_iter]))}')
+                #print(f'start_timestep {start_timestep} end_timestep: {end_timestep} end_charge: {end_charge} vs {evse_assets["ET"][se_iter]}')
             evse_assets.loc[evse_assets['SE_id']==se_id,['Emax']] = max(pev_battery_sizes)
             se_iter += 1
 
@@ -237,6 +241,7 @@ class LPMarketController():
         #print(f'market.T_market is {market.T_market} market.dt is {market.dt_market}')
         self.market = market
         energy_system = EnergySystem(nda_list, self.network, market, ts, hs, ts, hs, evse_assets=self.evse_assets)
+        #print(f'prices interpolated to {self.market.prices_import}')
         #print(f'energy system T: {energy_system.T}, energy_system.dt {energy_system.dt}, energy_system.T_ems {energy_system.T_ems}')
         self.energy_system = energy_system
 
@@ -304,8 +309,10 @@ class LPMarketController():
             self.control_setpoints = ev_control_setpoints
             #pickle.dump(EMS_output, open(join(EMS_path_string, normpath('Month' + str(Case_Month) + '_Day' + str(day) + '_EMS_output_' + str(x) + '.p')), "wb"))    
         ev_control_setpoints_t = {}
+        total_ev_power_t = 0
         for se_id in self.control_setpoints.keys():
             ev_control_setpoints_t[se_id] = self.control_setpoints[se_id][i_timestep]
+            total_ev_power_t = total_ev_power_t + ev_control_setpoints_t[se_id]
         #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ EMS Result post-processing and Analysis~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Step 1:  Extract the original EMS results  
         #PF_network_res = EMS_output['PF_network_res']
@@ -320,5 +327,6 @@ class LPMarketController():
         #    ev_control_setpoints[SE_id] = P_EVSE_ems[i_timestep,i_es]#P_import_ems[load_name] - P_export_ems[load_name]
         #   i_es = i_es+1
         #print(f'updating setpoints line 219 market_control_block {ev_control_setpoints}')
+        print(f'pev power at t {i_timestep} is {total_ev_power_t}')
 
         return ev_control_setpoints_t
