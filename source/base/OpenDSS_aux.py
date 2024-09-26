@@ -73,7 +73,8 @@ class open_dss_helper:
     def __init__(self, io_dir):
         self.io_dir = io_dir
         self.dss_file_name = 'Master.dss' #'ieee34.dss'
-        self.feeder_name = 'Hanover_01359'
+        self.feeder_name = self.io_dir.feeder_name 
+        self.scenario = self.io_dir.scenario_name 
 
     def get_request_list(self):
         return [input_datasets.baseLD_data_obj, input_datasets.all_caldera_node_names, input_datasets.HPSE_caldera_node_names]
@@ -105,7 +106,7 @@ class open_dss_helper:
         #----------------------------------------------------
         self.dss_logger = None
         if(is_successful):
-            self.dss_logger = open_dss_logger_A(self.io_dir, self.feeder_name, all_caldera_node_names, HPSE_caldera_node_names)
+            self.dss_logger = open_dss_logger_A(self.io_dir, self.scenario, self.feeder_name, all_caldera_node_names, HPSE_caldera_node_names)
 
         return is_successful
 
@@ -515,11 +516,11 @@ class open_dss_Caldera:
 
 class open_dss_logger_A:
 
-    def __init__(self, io_dir, feeder_name, all_caldera_node_names, HPSE_caldera_node_names):
+    def __init__(self, io_dir, scenario, feeder_name, all_caldera_node_names, HPSE_caldera_node_names):
         
         node_voltages_to_log = [] #'810.2', '822.1', '826.2', '856.2', '864.1', '848.1', '848.2', '848.3', '840.1', '840.2', '840.3', '838.2', '890.1', '890.2', '890.3']
         #node_pev_charging_to_log = ['810.2', '826.2', '856.2', '838.2']
-        node_pev_charging_to_log = ['806.1','806', '854']
+        node_pev_charging_to_log = list(all_caldera_node_names)
         
         #------------------------------
         
@@ -534,7 +535,7 @@ class open_dss_logger_A:
         
         #output_path = self.io_dir.outputs_dir
         output_folder_path = self.io_dir.outputs_dir
-        sc_path = os.path.join(output_folder_path, 'Day-ahead') #'uncontrolled') # TODO
+        sc_path = os.path.join(output_folder_path, scenario)
         if not os.path.exists(sc_path):
             os.mkdir(sc_path)
         output_path = os.path.join(sc_path, feeder_name)

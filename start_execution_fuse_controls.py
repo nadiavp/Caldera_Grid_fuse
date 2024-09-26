@@ -165,7 +165,7 @@ if __name__ == '__main__':
     if args["start_time_sec"] != None:
         start_simulation_unix_time = int(args["start_time_sec"])
     else:
-        start_simulation_unix_time = 60*60*6 #120
+        start_simulation_unix_time = 60*60* 77.75 # starting at 6 am (but 1 timestep ahead) on Thursday (4th day of EV DATA) #120
     
     # Set the end time.
     if args["end_time_sec"] != None:
@@ -192,12 +192,18 @@ if __name__ == '__main__':
     #---------------------
     print(f'ensure_pev_charge_needs_met_for_ext_control_strategy: {ensure_pev_charge_needs_met_for_ext_control_strategy}')
     
+    ## P added 
+    # feeder folders should be inside opendss folder
+    feeder_name = 'Mercury_22370' # 'Hanover_01385' # 'Hanover_01359' # 'Mercury_22370' # "ieee34"
+    scenario_name = "Day-ahead" # "uncontrolled"
+    
     # The full path to Master dss file
     if args["dss_full_path"] != None:
         dss_full_path = args["dss_full_path"]
     else:
-        dss_full_path = os.path.join(path_to_here, 'opendss', 'Hanover_01359', 'Master.dss') # TODO
+        dss_full_path = os.path.join(path_to_here, 'opendss', feeder_name, 'Master.dss') # TODO
     print('OpenDSS master file full path:', dss_full_path)
+    
     
     start_simulation_unix_time = int(start_simulation_unix_time)
     end_simulation_unix_time = int(end_simulation_unix_time)
@@ -234,13 +240,15 @@ if __name__ == '__main__':
     io_dir.base_dir = caldera_grid_proj_dir
     io_dir.inputs_dir = os.path.join( working_dir, input_path )
     io_dir.outputs_dir = os.path.join( working_dir, output_path )
+    io_dir.feeder_name = feeder_name
+    io_dir.scenario_name = scenario_name
     
     if not os.path.exists(io_dir.inputs_dir):
         print("Input directory does not exist", io_dir.inputs_dir)
         exit()
         
-    shutil.rmtree(io_dir.outputs_dir, ignore_errors=True)
-    os.makedirs(io_dir.outputs_dir, exist_ok=True)
+    # shutil.rmtree(io_dir.outputs_dir, ignore_errors=True) #P commented
+    # os.makedirs(io_dir.outputs_dir, exist_ok=True)
     
     #---------------------
     
