@@ -1401,7 +1401,7 @@ class EnergySystem:
             # tstart = evse_i['']
             # tend = evse_i['']
             # maximum power constraint
-            prob.add_constraint(P_EVSE[:,evse_iter] <= evse_i['Pmax'])
+            #prob.add_constraint(P_EVSE[:,evse_iter] <= evse_i['Pmax'])
             # minimum power constraint
             #prob.add_constraint(P_EVSE[:,evse_iter] >= 0)
             # minimum energy constraint P*dt >= ET-E0 where ET and E0 are timeseries self.dt_ems * Asum * P_EVSE[:,evse_iter]
@@ -1419,7 +1419,9 @@ class EnergySystem:
             #for t in range(T_mpc):
             #    if evse_i['ET'][t,0] == 0:
             #        prob.add_constraint(P_EVSE[t,evse_iter] == 0)
+            prob.add_constraint(self.dt_ems * P_EVSE[:,evse_iter] <= evse_i['ET'])
             #prob.add_constraint(P_EVSE[:,evse_iter] <= evse_i['ET']*10e5)
+            #prob.add_constraint(sum(self.dt_ems * P_EVSE[:,evse_iter] * evse_i['eff_opt']) >= sum(evse_i['ET']-evse_i['E0']))
             prob.add_constraint(self.dt_ems * Asum * P_EVSE[:,evse_iter] * evse_i['eff_opt'] >= evse_i['ET']-evse_i['E0'])
             evse_iter = evse_iter+1
 

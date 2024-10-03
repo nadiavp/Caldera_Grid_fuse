@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 from Caldera_globals import SE_setpoint
 from global_aux import Caldera_message_types, OpenDSS_message_types, input_datasets, container_class
-from control_templates import typeB_control
 
 from market_control_block import LPMarketController
 """
@@ -18,11 +17,9 @@ It takes inputs on plug-in time, departure time, energy needs from the mobility 
 It then does some SCM control and sends those EV control setpoints to the EV Sim
 """
 
-class market_control(typeB_control):
+class market_control():
     def __init__(self, base_dir, simulation_time_constraints, input_se_csv='inputs/SE_.csv',
         name='market_control', helics_config_path='', feeder_name='ieee_34', input_ce_csv='inputs/CE_.csv', ce_ext_strategy="ext0001q", se_group=[10]):
-        super().__init__(base_dir, simulation_time_constraints)
-        # add important params here
         self.name = name
         self.feeder_name = feeder_name
         #logging.basicConfig(filename=f'{name}.log', encoding='utf-8', level=logging.DEBUG)
@@ -127,13 +124,21 @@ class market_control(typeB_control):
         #DSS_state_info_dict = get_messages_to_request_state_info_from_OpenDSS(self, federate_time)
         ev_control_setpoints = self.market.solve(DSS_state_info_dict, federate_time)
         #print(f'nrel_control_market_l2 line 125, updated evse setpoints to {ev_control_setpoints}')
+        #print(f'Caldera_state_info_dict: {Caldera_state_info_dict}')
         PQ_setpoints = []
         for SE_id in ev_control_setpoints.keys():
             X = SE_setpoint()
-            X.SE_id = SE_id
-            X.PkW = ev_control_setpoints[SE_id]
+            X.SE_id = int(SE_id)
+            X.PkW = int(np.ceil(ev_control_setpoints[SE_id]))
+            #print(f'setting {SE_id} to {X.PkW}')
             X.QkVAR = 0#Q_kVAR
             PQ_setpoints.append(X)
+        
+        #X = SE_setpoint()
+        #X.SE_id = 171571
+        #X.PkW = 10000
+        #X.QkVAR = 0
+        #PQ_setpoints = [X]
 
         Caldera_control_info_dict = {}
         if len(PQ_setpoints) > 0:

@@ -184,12 +184,12 @@ class LPMarketController():
             # assume there is more than one
             pev_battery_sizes = [0]
             for _, ce_i in ce_at_se.iterrows():
-                ev_battery_size = ev_df[ev_df['EV_type'] == ce_i['pev_type']]['usable_battery_size_kWh'].item()*3600 # convert to kJ from kWh
+                ev_battery_size = ev_df[ev_df['EV_type'] == ce_i['pev_type']]['usable_battery_size_kWh'].item() *3600 # convert to kJ from kWh
                 pev_battery_sizes.append(ev_battery_size)
                 start_charge = ce_i['soc_i']*ev_battery_size
                 end_charge = ce_i['soc_f']*ev_battery_size
                 start_timestep = int(np.floor((ce_i['start_time'] * 3600 - self.start_time_sec)/ ts)) # convert from hours to timestep index
-                end_timestep = int(np.ceil((ce_i['end_time_chg'] * 3600 - self.start_time_sec) / ts))
+                end_timestep = int(np.ceil((ce_i['end_time_prk'] * 3600 - self.start_time_sec) / ts))
                 # figure out the minimum you need to charge
                 # if your charge session ends beyond the horizon, calc the actual end charge energy for end of horizon
                 if end_timestep <0 or start_timestep >= n_timesteps:
@@ -198,8 +198,8 @@ class LPMarketController():
                 if end_timestep >= n_timesteps:
                     end_charge = max(0, end_charge - (end_timestep - n_timesteps) * max_evse)
                     end_timestep = n_timesteps - 1
-                evse_assets['E0'][se_iter][start_timestep:end_timestep,0] = evse_assets['E0'][se_iter][start_timestep:end_timestep,0] + start_charge
-                evse_assets['ET'][se_iter][start_timestep:end_timestep,0] = evse_assets['ET'][se_iter][start_timestep:end_timestep,0] + start_charge
+                evse_assets['E0'][se_iter][start_timestep-1:end_timestep,0] = evse_assets['E0'][se_iter][start_timestep-1:end_timestep,0] + start_charge
+                evse_assets['ET'][se_iter][start_timestep-1:end_timestep-1,0] = evse_assets['ET'][se_iter][start_timestep-1:end_timestep-1,0] + start_charge
                 evse_assets['ET'][se_iter][end_timestep,0] = evse_assets['ET'][se_iter][end_timestep,0] + end_charge #final_energy_i
                 #print(f'start_timestep {start_timestep} start_charge {start_charge} vs {sum(sum(evse_assets["E0"][se_iter]))}')
                 #print(f'start_timestep {start_timestep} end_timestep: {end_timestep} end_charge: {end_charge} vs {evse_assets["ET"][se_iter]}')
@@ -248,14 +248,13 @@ class LPMarketController():
 
     def solve(self, DSS_state_info_dict, federate_time=0):
         # this function solves the control parameters
-        ev_control_setpoints = {}
         hs = (self.horizon_sec-self.start_time_sec)
         ts = self.timestep_sec
         start_time = self.start_time_sec
-        i_timestep = int(np.floor((federate_time-start_time)/ts))
+        i_timestep = int(np.floor((federate_time-self.start_time_sec)/ts))
     
-        if i_timestep == 0:
-
+        if i_timestep == 100000:
+            ev_control_setpoints = {}
             # first get the updated grid status
             #voltages = json.loads(h.helicsInputGetString(self.subscriptions[0]))
             #currents = json.loads(h.helicsInputGetString(self.subscriptions[1]))
@@ -287,13 +286,15 @@ class LPMarketController():
             i_line_unconst_list = []#list(range(network.N_lines))   
             v_bus_unconst_list = [] # no voltage constraints 
             t0 = int(np.floor((federate_time-start_time)/self.energy_system.dt))
+            print(f'running timestep 0 market_control_block')
 
             # run the optimization for each bus
-            for bus_i in self.bus_df['name']:
+            for bus_i in self.evse_assets['bus_id'].unique(): ##self.bus_df['name']: #
+                #bus_i_list = [bus_i, bus_i+'.1', bus_i+'.2', bus_i+'.3']
                 evse_bus_i = self.evse_assets[self.evse_assets['bus_id']==bus_i] # the evse at bus_i
+                #print(f'evse at {bus_i} are {evse_bus_i["SE_id"]}')
                 if len(evse_bus_i)>0:
                     if sum(sum(evse_bus_i['ET']))>0:
-                        #print(f'running opt for {evse_bus_i}')
                         self.energy_system = EnergySystem(nda_list, self.network, self.market, ts, hs, ts, hs, evse_assets=evse_bus_i)
                         #print(f'energy_system.evse_assets in market_control_block {self.energy_system.evse_assets}')
 
@@ -307,12 +308,14 @@ class LPMarketController():
                             ev_control_setpoints[se_id] = EMS_output['P_EVSE_ems'][:, i_es]                       
                             i_es = i_es+1
             self.control_setpoints = ev_control_setpoints
+            #pd.DataFrame(ev_control_setpoints).to_csv('control_setpoints_{self.name}.csv')
             #pickle.dump(EMS_output, open(join(EMS_path_string, normpath('Month' + str(Case_Month) + '_Day' + str(day) + '_EMS_output_' + str(x) + '.p')), "wb"))    
         ev_control_setpoints_t = {}
         total_ev_power_t = 0
         for se_id in self.control_setpoints.keys():
-            ev_control_setpoints_t[se_id] = self.control_setpoints[se_id][i_timestep]
+            ev_control_setpoints_t[se_id] = float(self.control_setpoints[se_id][i_timestep])
             total_ev_power_t = total_ev_power_t + ev_control_setpoints_t[se_id]
+            print(f'market control sending se_id {se_id} set to {ev_control_setpoints_t[se_id]}')
         #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ EMS Result post-processing and Analysis~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Step 1:  Extract the original EMS results  
         #PF_network_res = EMS_output['PF_network_res']
@@ -326,7 +329,6 @@ class LPMarketController():
         #    # take the first timestep in the horizon opt
         #    ev_control_setpoints[SE_id] = P_EVSE_ems[i_timestep,i_es]#P_import_ems[load_name] - P_export_ems[load_name]
         #   i_es = i_es+1
-        #print(f'updating setpoints line 219 market_control_block {ev_control_setpoints}')
-        print(f'pev power at t {i_timestep} is {total_ev_power_t}')
+        #print(f'pev power at t {i_timestep} is {total_ev_power_t}')
 
         return ev_control_setpoints_t

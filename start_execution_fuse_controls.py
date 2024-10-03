@@ -165,7 +165,7 @@ if __name__ == '__main__':
     if args["start_time_sec"] != None:
         start_simulation_unix_time = int(args["start_time_sec"])
     else:
-        start_simulation_unix_time = 60*60* 77.75 # starting at 6 am (but 1 timestep ahead) on Thursday (4th day of EV DATA) #120
+        start_simulation_unix_time = 60*60* 6 # starting at 6 am (but 1 timestep ahead) on Thursday (4th day of EV DATA) #120
     
     # Set the end time.
     if args["end_time_sec"] != None:
@@ -178,7 +178,7 @@ if __name__ == '__main__':
         use_opendss = True
         print('use_opendss set to true')
     else:
-        use_opendss = True #False
+        use_opendss = True
         # print('WARNING, not using opendss, this version returns 1.0p.u. voltage always')
         
     # Other options.
@@ -194,7 +194,7 @@ if __name__ == '__main__':
     
     ## P added 
     # feeder folders should be inside opendss folder
-    feeder_name = 'Mercury_22370' # 'Hanover_01385' # 'Hanover_01359' # 'Mercury_22370' # "ieee34"
+    feeder_name ='Hanover_01359' # 'Mercury_22370' # "ieee34"'Shellbank_22700' #
     scenario_name = "Day-ahead" # "uncontrolled"
     
     # The full path to Master dss file
@@ -257,7 +257,7 @@ if __name__ == '__main__':
     num_of_federates += 1   # OpenDSS
     num_of_federates += 1   # Caldera_ES500
     num_of_federates += 1   # control_strategy_A
-    num_of_federates += 1   # control_strategy_B
+    #num_of_federates += 1   # control_strategy_B
     #num_of_federates += 1   # control_strategy_C
     
     broker = subprocess.Popen(['helics_broker', '--loglevel=no_print', '-f{}'.format(num_of_federates)])
@@ -303,7 +303,7 @@ if __name__ == '__main__':
     #   Control Strategy_B Federate
     #-------------------------------
     json_config_file_name = 'control_strategy_B.json'
-    #CS_B_obj = btms_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_Sep_Shellbank_22700.csv')    
+    #CS_B_obj = btms_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_longdwell_Sep_Hanover_01359.csv')    
     #p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_B_obj,), name="control_strategy_B_federate")
     #processes.append(p)
     
@@ -318,27 +318,27 @@ if __name__ == '__main__':
     #------------------------------
     #   Market Control Federate
     #------------------------------
-    json_config_file_name = 'control_strategy_market.json'
+    json_config_file_name = 'control_strategy_B.json' #'control_strategy_market.json'
     horizon_sec = simulation_time_constraints.end_simulation_unix_time - simulation_time_constraints.start_simulation_unix_time #(end_simulation_unix_time - start_simulation_unix_time)
     #simulation_time_constraints.start_simulation_unix_time = start_simulation_unix_time
     #simulation_time_constraints.end_simulation_unix_time = end_simulation_unix_time
     #simulation_time_constraints.grid_timestep_sec = grid_timestep_sec
     print(f'optimization horizon is {horizon_sec}')
-    opendss_file_to_site_storage='../opendss/Hanover_01359/Master.dss' #'../opendss/Shellbank_22700/Master.dss'
+    opendss_file_to_site_storage='../opendss/Hanover_01359/Master.dss' #'../opendss/Shellbank_22700/Master.dss' #'LMP_dayahead'
     print(opendss_file_to_site_storage) 
-    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_longdwell_Sep_Hanover_01359.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv'
-        name='LMP_dayahead', helics_config_path=json_config_file_name, feeder_name='Hanover_01359', input_ce_csv='inputs/CE_longdwell_Sep_Hanover_01359.csv', ce_ext_strategy="ext0001q", se_group=[10]) #
+    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_longdwell_Sep_Hanover_01359.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv' 'inputs/SE_Sep_Shellbank_22700_24hr.csv', #
+        name='LMP_dayahead', helics_config_path=json_config_file_name, feeder_name='Hanover_01359', input_ce_csv='inputs/CE_longdwell_Sep_Hanover_01359.csv', ce_ext_strategy="ext0001q", se_group=[10]) #'inputs/CE_Sep_Shellbank_22700_24hr.csv'#
     p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='market_control_federate')
     processes.append(p)
 
     #------------------------------
     #   Emissions Control Federate
     #------------------------------
-    json_config_file_name = 'control_strategy_emissions.json'
-    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_longdwell_Sep_Hanover_01359.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv'
-        name='emissions', helics_config_path=json_config_file_name, feeder_name='Hanover_01359', input_ce_csv='inputs/CE_longdwell_Sep_Hanover_01359.csv', ce_ext_strategy="ext0001q", se_group=[2]) #
-    p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='market_control_federate')
-    processes.append(p)
+    #json_config_file_name = 'control_strategy_emissions.json'
+    #CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_longdwell_Sep_Hanover_01359.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv'
+    #    name='emissions', helics_config_path=json_config_file_name, feeder_name='Hanover_01359', input_ce_csv='inputs/CE_longdwell_Sep_Hanover_01359.csv', ce_ext_strategy="ext0001q", se_group=[2]) #
+    #p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='market_control_federate')
+    #processes.append(p)
 
     for p in processes:
         p.start()
