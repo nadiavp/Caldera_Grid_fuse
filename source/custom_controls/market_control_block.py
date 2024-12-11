@@ -253,7 +253,7 @@ class LPMarketController():
         start_time = self.start_time_sec
         i_timestep = int(np.floor((federate_time-self.start_time_sec)/ts))
     
-        if i_timestep == 100000:
+        if i_timestep == 0:
             ev_control_setpoints = {}
             # first get the updated grid status
             #voltages = json.loads(h.helicsInputGetString(self.subscriptions[0]))

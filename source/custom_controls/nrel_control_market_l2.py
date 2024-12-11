@@ -19,7 +19,7 @@ It then does some SCM control and sends those EV control setpoints to the EV Sim
 
 class market_control():
     def __init__(self, base_dir, simulation_time_constraints, input_se_csv='inputs/SE_.csv',
-        name='market_control', helics_config_path='', feeder_name='ieee_34', input_ce_csv='inputs/CE_.csv', ce_ext_strategy="ext0001q", se_group=[10]):
+        name='market_control', helics_config_path='', feeder_name='ieee_34', input_ce_csv='inputs/CE_.csv', ce_ext_strategy="ext0001", se_group=[10]):
         self.name = name
         self.feeder_name = feeder_name
         #logging.basicConfig(filename=f'{name}.log', encoding='utf-8', level=logging.DEBUG)
@@ -54,13 +54,16 @@ class market_control():
     
     def terminate_this_federate(self):
         #print(self.datasets_dict[input_datasets.external_strategies])
-        if "ext_market_l2" in self.datasets_dict[input_datasets.external_strategies]:
+        if "ext0001" in self.datasets_dict[input_datasets.external_strategies]:
             print(f'running with market_l2 federate')
             return False
             #elif "ext0001q" in self.datasets_dict[input_datasets.external_strategies]:
-        elif self.ce_ext_strategy in self.datasets_dict[input_datasets.external_strategies]:
-            print(f'running with market_l2 federate')
+        elif "ext0002" in self.datasets_dict[input_datasets.external_strategies]:
+            print(f'running with emissions federate')
             return False
+        #elif self.ce_ext_strategy in self.datasets_dict[input_datasets.external_strategies]:
+        #    print(f'running with market_l2 federate')
+        #    return False
 
         return True
 
@@ -70,8 +73,8 @@ class market_control():
     
     def get_messages_to_request_state_info_from_Caldera(self, next_control_timestep_start_unix_time):
         return_dict = {}
-        return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = self.se_group #[10] #Grid teams to update this
-        #return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0003', 'ext_market_l2']
+        #return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = self.se_group #[10] #Grid teams to update this
+        return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0001', 'ext0002']
 
         # The return value (return_dict) must be a dictionary with Caldera_message_types as keys.
         # If there is nothing to return, return an empty dictionary.

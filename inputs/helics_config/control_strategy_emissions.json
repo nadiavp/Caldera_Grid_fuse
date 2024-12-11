@@ -1,5 +1,5 @@
 {
-	"name":"control_strategy_A",
+	"name":"control_strategy_emissions",
 	"coreName":"emissions_control_core",
 	"coretype":"zmq",
 	"coreInit":"--federates=1",

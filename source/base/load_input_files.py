@@ -48,22 +48,27 @@ def get_Ext_strategy(Ext_str):
             successfull = False
     elif len(Ext_string) not in(7, 8):
         successfull = False
+        print('Ext_strategy must be string of length 7 or 8')
     else:
         header_val = Ext_string[:3]
         num_val = Ext_string[3:7]    
             
         if header_val != 'ext':
             successfull = False
+            print('Ext_strategy must start with ext')
         
         try:
             tmp = int(num_val)
-            if tmp < 0: successfull = False
+            if tmp < 0: 
+                successfull = False
+                print('Ext_strategy [3:7] must convert to a positive integer')
         except ValueError:
             successfull = False
-                
+            print('Ext_strategy [3:7] must convert to integer')
         if len(Ext_string) == 8:
             if Ext_string[-1] != 'q':
                 successfull = False
+                print('Ext_strategy of length 8 must end with a q denoting that is supports inverter reactive power setpoint')
             else:
                 inverter_model_supports_Qsetpoint = True
     
@@ -80,8 +85,12 @@ def get_control_strategy_enums(ES_str, VS_str, Ext_str, line_number, L2_control_
     (VS_conversion_successfull, VS_enum) = get_L2_control_strategies_enum(VS_str)
     (Ext_successfull, ext_supports_Q, Ext_string) = get_Ext_strategy(Ext_str)
     
-    if not ES_conversion_successfull or not VS_conversion_successfull or not Ext_successfull:
-        errors.append('{}, Invalid Control Strategy Values.'.format(line_number))
+    if not ES_conversion_successfull:
+        errors.append('{}, Invalid ES Control Strategy Values.'.format(line_number))
+    if not VS_conversion_successfull:
+        errors.append('{}, Invalid VS Control Strategy Values.'.format(line_number))
+    if not Ext_successfull:
+        errors.append('{}, Invalid Ext Control Strategy Values.'.format(line_number))
         
     if len(errors) == 0:
         if (ES_enum not in L2_control_strategies_to_include) or (VS_enum not in L2_control_strategies_to_include):

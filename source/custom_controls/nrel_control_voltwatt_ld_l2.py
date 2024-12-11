@@ -52,9 +52,9 @@ class voltwatt_control(typeA_control):
     
     def terminate_this_federate(self):
         print(self.datasets_dict[input_datasets.external_strategies])
-        if "ext0001q" in self.datasets_dict[input_datasets.external_strategies]:
-            return False
-        elif "voltwatt_ld_l2" in self.datasets_dict[input_datasets.external_strategies]:
+        #if "ext0001q" in self.datasets_dict[input_datasets.external_strategies]:
+        #    return False
+        if "voltwatt_ld_l2" in self.datasets_dict[input_datasets.external_strategies]:
             return False
 
         return True
