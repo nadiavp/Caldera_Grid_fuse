@@ -58,7 +58,7 @@ class market_control():
             print(f'running with market_l2 federate')
             return False
             #elif "ext0001q" in self.datasets_dict[input_datasets.external_strategies]:
-        elif "ext0002" in self.datasets_dict[input_datasets.external_strategies]:
+        elif "ext0003" in self.datasets_dict[input_datasets.external_strategies]:
             print(f'running with emissions federate')
             return False
         #elif self.ce_ext_strategy in self.datasets_dict[input_datasets.external_strategies]:
@@ -74,8 +74,12 @@ class market_control():
     def get_messages_to_request_state_info_from_Caldera(self, next_control_timestep_start_unix_time):
         return_dict = {}
         #return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = self.se_group #[10] #Grid teams to update this
-        return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0001', 'ext0002']
+        #if self.name == 'emissions':
+        #    return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0003']
+        #else:
+        #    return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0001']
 
+        return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = [self.ce_ext_strategy]
         # The return value (return_dict) must be a dictionary with Caldera_message_types as keys.
         # If there is nothing to return, return an empty dictionary.
         return return_dict
@@ -121,21 +125,27 @@ class market_control():
         # this function solves the control parameters
         ev_control_setpoints = {}
 
+        # returns dictionary -> {extCS : active_CE}
+        CEs_by_extCS = Caldera_state_info_dict[Caldera_message_types.get_active_charge_events_by_extCS]
+        #all_CEs = Caldera_state_info_dict[Caldera_message_types.get_all]
+
         # first get the updated grid status
         #voltages = json.loads(h.helicsInputGetString(self.subscriptions[0]))
         #currents = json.loads(h.helicsInputGetString(self.subscriptions[1]))
         #DSS_state_info_dict = get_messages_to_request_state_info_from_OpenDSS(self, federate_time)
-        ev_control_setpoints = self.market.solve(DSS_state_info_dict, federate_time)
-        #print(f'nrel_control_market_l2 line 125, updated evse setpoints to {ev_control_setpoints}')
-        #print(f'Caldera_state_info_dict: {Caldera_state_info_dict}')
+        
+        ev_control_setpoints = self.market.solve(DSS_state_info_dict, CEs_by_extCS, federate_time)
         PQ_setpoints = []
-        for SE_id in ev_control_setpoints.keys():
-            X = SE_setpoint()
-            X.SE_id = int(SE_id)
-            X.PkW = int(np.ceil(ev_control_setpoints[SE_id]))
-            #print(f'setting {SE_id} to {X.PkW}')
-            X.QkVAR = 0#Q_kVAR
-            PQ_setpoints.append(X)
+        for (extCS, active_CEs) in CEs_by_extCS.items():
+            for CE in active_CEs:
+                SE_id = CE.SE_id
+                X = SE_setpoint()
+                X.SE_id = int(SE_id)
+                #int(np.ceil(ev_control_setpoints[SE_id]))
+                X.PkW = ev_control_setpoints[SE_id]
+                #print(f'setting {SE_id} to {X.PkW}')
+                X.QkVAR = 0#Q_kVAR
+                PQ_setpoints.append(X)
         
         #X = SE_setpoint()
         #X.SE_id = 171571

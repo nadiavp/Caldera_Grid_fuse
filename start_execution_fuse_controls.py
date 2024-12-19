@@ -324,10 +324,10 @@ if __name__ == '__main__':
     simulation_time_constraints.end_simulation_unix_time = end_simulation_unix_time
     simulation_time_constraints.grid_timestep_sec = grid_timestep_sec
     print(f'optimization horizon is {horizon_sec}')
-    opendss_file_to_site_storage='../opendss/Hanover_01359/Master.dss' #'../opendss/Shellbank_22700/Master.dss' #'LMP_dayahead'
+    opendss_file_to_site_storage=f'../opendss/{feeder_name}/Master.dss' #'../opendss/Shellbank_22700/Master.dss' #'LMP_dayahead'
     print(opendss_file_to_site_storage) 
-    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_longdwell_Sep_Hanover_01359.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv' 'inputs/SE_Sep_Shellbank_22700_24hr.csv', #
-        name='LMP_dayahead', helics_config_path=json_config_file_name, feeder_name='Hanover_01359', input_ce_csv='inputs/CE_longdwell_Sep_Hanover_01359.csv', ce_ext_strategy="ext_market_l2", se_group=[10]) #'inputs/CE_Sep_Shellbank_22700_24hr.csv'#
+    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv=f'inputs/SE_longdwell_Sep_{feeder_name}.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv' 'inputs/SE_Sep_Shellbank_22700_24hr.csv', #
+        name='LMP_dayahead', helics_config_path=json_config_file_name, feeder_name=feeder_name, input_ce_csv=f'inputs/CE_longdwell_Sep_{feeder_name}.csv', ce_ext_strategy="ext0001", se_group=[10]) #'inputs/CE_Sep_Shellbank_22700_24hr.csv'#
     p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='market_control_federate')
     processes.append(p)
 
@@ -335,8 +335,8 @@ if __name__ == '__main__':
     #   Emissions Control Federate
     #------------------------------
     json_config_file_name = 'control_strategy_emissions.json'
-    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_longdwell_Sep_Hanover_01359.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv'
-        name='emissions', helics_config_path=json_config_file_name, feeder_name='Hanover_01359', input_ce_csv='inputs/CE_longdwell_Sep_Hanover_01359.csv', ce_ext_strategy="ext_emissions", se_group=[2]) #
+    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv=f'inputs/SE_longdwell_Sep_{feeder_name}.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv'
+        name='emissions', helics_config_path=json_config_file_name, feeder_name=feeder_name, input_ce_csv=f'inputs/CE_longdwell_Sep_{feeder_name}.csv', ce_ext_strategy="ext0003", se_group=[10]) #
     p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='market_control_federate')
     processes.append(p)
 

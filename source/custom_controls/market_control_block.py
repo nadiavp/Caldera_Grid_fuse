@@ -246,7 +246,7 @@ class LPMarketController():
         self.energy_system = energy_system
 
 
-    def solve(self, DSS_state_info_dict, federate_time=0):
+    def solve(self, DSS_state_info_dict, CEs_by_extCS, federate_time=0):
         # this function solves the control parameters
         hs = (self.horizon_sec-self.start_time_sec)
         ts = self.timestep_sec
@@ -289,6 +289,7 @@ class LPMarketController():
             print(f'running timestep 0 market_control_block')
 
             # run the optimization for each bus
+            #        print(f'line 295 in market_control_bloc: se_id is {SE_id} evse_bus_i is {evse_bus_i}')
             for bus_i in self.evse_assets['bus_id'].unique(): ##self.bus_df['name']: #
                 #bus_i_list = [bus_i, bus_i+'.1', bus_i+'.2', bus_i+'.3']
                 evse_bus_i = self.evse_assets[self.evse_assets['bus_id']==bus_i] # the evse at bus_i
@@ -312,10 +313,14 @@ class LPMarketController():
             #pickle.dump(EMS_output, open(join(EMS_path_string, normpath('Month' + str(Case_Month) + '_Day' + str(day) + '_EMS_output_' + str(x) + '.p')), "wb"))    
         ev_control_setpoints_t = {}
         total_ev_power_t = 0
-        for se_id in self.control_setpoints.keys():
-            ev_control_setpoints_t[se_id] = float(self.control_setpoints[se_id][i_timestep])
-            total_ev_power_t = total_ev_power_t + ev_control_setpoints_t[se_id]
-            print(f'market control sending se_id {se_id} set to {ev_control_setpoints_t[se_id]}')
+        #for se_id in self.control_setpoints.keys():
+        # only return the active charge event controls
+        for (extCS, active_CEs) in CEs_by_extCS.items():
+            for CE in active_CEs:
+                se_id = CE.SE_id
+                ev_control_setpoints_t[se_id] = float(self.control_setpoints[se_id][i_timestep])
+                total_ev_power_t = total_ev_power_t + ev_control_setpoints_t[se_id]
+            #print(f'market control sending se_id {se_id} set to {ev_control_setpoints_t[se_id]}')
         #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ EMS Result post-processing and Analysis~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Step 1:  Extract the original EMS results  
         #PF_network_res = EMS_output['PF_network_res']
@@ -329,6 +334,6 @@ class LPMarketController():
         #    # take the first timestep in the horizon opt
         #    ev_control_setpoints[SE_id] = P_EVSE_ems[i_timestep,i_es]#P_import_ems[load_name] - P_export_ems[load_name]
         #   i_es = i_es+1
-        #print(f'pev power at t {i_timestep} is {total_ev_power_t}')
+        print(f'pev power at t {i_timestep} is {total_ev_power_t}')
 
         return ev_control_setpoints_t

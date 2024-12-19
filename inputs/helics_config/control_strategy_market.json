@@ -1,6 +1,6 @@
 {
-	"name":"control_strategy_B",
-	"coreName":"control_strategy_B_core",
+	"name":"control_strategy_market",
+	"coreName":"control_strategy_market_core",
 	"coretype":"zmq",
 	"coreInit":"--federates=1",
 	"period": 0.01,
