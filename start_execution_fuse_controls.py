@@ -337,7 +337,16 @@ if __name__ == '__main__':
     json_config_file_name = 'control_strategy_emissions.json'
     CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv=f'inputs/SE_longdwell_Sep_{feeder_name}.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv'
         name='emissions', helics_config_path=json_config_file_name, feeder_name=feeder_name, input_ce_csv=f'inputs/CE_longdwell_Sep_{feeder_name}.csv', ce_ext_strategy="ext0003", se_group=[10]) #
-    p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='market_control_federate')
+    p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='emissions_control_federate')
+    processes.append(p)
+
+    #------------------------------
+    #   Transformer Control Federate
+    #------------------------------
+    json_config_file_name = 'control_strategy_transformer.json'
+    CS_M_obj = transformer_control(io_dir, simulation_time_constraints, input_se_csv=f'inputs/SE_longdwell_Sep_{feeder_name}.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv'
+        name='equal_sharing', helics_config_path=json_config_file_name, feeder_name=feeder_name, input_ce_csv=f'inputs/CE_longdwell_Sep_{feeder_name}.csv', ce_ext_strategy="ext0004", se_group=[10]) #
+    p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='transformer_control_federate')
     processes.append(p)
 
     for p in processes:

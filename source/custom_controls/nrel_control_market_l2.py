@@ -53,17 +53,9 @@ class market_control():
     
     
     def terminate_this_federate(self):
-        #print(self.datasets_dict[input_datasets.external_strategies])
-        if "ext0001" in self.datasets_dict[input_datasets.external_strategies]:
+        if self.ce_ext_strategy in self.datasets_dict[input_datasets.external_strategies]:
             print(f'running with market_l2 federate')
             return False
-            #elif "ext0001q" in self.datasets_dict[input_datasets.external_strategies]:
-        elif "ext0003" in self.datasets_dict[input_datasets.external_strategies]:
-            print(f'running with emissions federate')
-            return False
-        #elif self.ce_ext_strategy in self.datasets_dict[input_datasets.external_strategies]:
-        #    print(f'running with market_l2 federate')
-        #    return False
 
         return True
 
