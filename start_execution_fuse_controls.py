@@ -194,8 +194,8 @@ if __name__ == '__main__':
     
     ## P added 
     # feeder folders should be inside opendss folder
-    feeder_name ='Hanover_01359' # 'Mercury_22370' # "ieee34"'Shellbank_22700' #
-    scenario_name = "uncontrolled"
+    feeder_name ='Acca_01363' #'Hanover_01359' # 'Mercury_22370' # "ieee34"'Shellbank_22700' #
+    scenario_name = 'mixed' #"uncontrolled"
     
     # The full path to Master dss file
     if args["dss_full_path"] != None:
