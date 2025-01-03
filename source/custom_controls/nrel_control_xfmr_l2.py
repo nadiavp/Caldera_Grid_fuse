@@ -14,12 +14,14 @@ import opendssdirect as dss
 
 class transformer_control():
     def __init__(self, base_dir, simulation_time_constraints, input_se_csv='inputs/SE_.csv', 
-        name='equal_sharing', helics_config_path='', feeder_name='ieee34', input_ce_csv='inputs/CE_.csv', ce_ext_strategy='ext0004', se_group=[10]):
+        name='equal_sharing', helics_config_path='', feeder_name='ieee34', input_ce_csv='inputs/CE_.csv', ce_ext_strategy='ext0004', se_group=[10],
+        opendss_dir = 'opendss/Master.dss'):
         # name options: ['first_come_first_served', 'fcfs_with_minimum', 'equal_sharing']
         self.name=name
         self.se_file = input_se_csv
         self.ce_file = input_ce_csv
         self.se_group = se_group # this is a code which matches the code in the SE input file. It determines which SE locations get this control
+        self.opendss_dir = opendss_dir
         self.ce_ext_strategy = ce_ext_strategy# this is a code which matches the code in the CE input file and determines which vehicles get this control
         self.timestep_sec = simulation_time_constraints.grid_timestep_sec
         self.horizon_sec = simulation_time_constraints.end_simulation_unix_time
@@ -72,11 +74,20 @@ class transformer_control():
         # If there is nothing to return, return an empty dictionary.
         return return_dict
 
-    def initialize(self, ):
-        self.management_system = ChargingManagementSystem(capacity_series_1min['Capacity'], allocation_method=method)
+    def initialize(self):
+        # get all the specs for the evs and evse
+        self.evse_inputs = pd.read_csv('inputs/EVSE_inputs.csv')
+        self.ev_inputs = pd.read_csv('inputs/EV_inputs.csv')
+        #self.management_system = ChargingManagementSystem(capacity_series, allocation_method=method)
+        # one management system is made per controlled EVSE set (i.e. per transformer) so don't initialize here
+        # get a list of charge events controlled by this controller
+        CE_df = pd.read_csv(self.ce_file)
+        CE_df = CE_df[CE_df['Ext_strategy']==self.ce_ext_strategy]
+        self.CE_df = CE_df
         # get a list of nodes with SE
         SE_df = pd.read_csv(self.se_file)
-        SE_df['trns_node'] = SE_df['node_id'].split('_')[0]
+        SE_df['trns_node'] = SE_df['node_id'].str.split('_',1).str[0]
+        self.SE_df = SE_df
         #get transformer ratings
         # first compile the feeder
         dss.Command("clear")
@@ -85,6 +96,8 @@ class transformer_control():
         # next get the transformer names and names of buses they are connected to
         trns_names = dss.Transformers.AllNames()
         trns_kva = {}
+        trns_nodes = {}
+        trns_by_seid = {}
         for trns in trns_names:
             dss.Transformers.Name(trns)
             node_names = dss.CktElement.BusNames()
@@ -93,8 +106,8 @@ class transformer_control():
         # map the nodes to SE_id and create a transformer by SE_id list
         # there could be multiple SE_ids that go to one transformer
             for node_name in node_names:
-                SE_id = SE_df[SE_df['node_id']==node_name]['SE_id']
-                if len(SE_id)>0:
+                SE_ids = SE_df[SE_df['node_id']==node_name]['SE_id']
+                for SE_id in SE_ids:
                     trns_by_seid[SE_id] = trns
         self.trns_kva = trns_kva
         self.trns_by_seid = trns_by_seid
@@ -105,36 +118,43 @@ class transformer_control():
         PQ_setpoints = []
         
         # Creating a capacity time series
-        Sim_start_time = self.start_time
-        Sim_end_time = self.horizon
-        time_index = pd.date_range(start=self.start_time_sec, end=self.horizon_sec, freq='T')
+        Sim_start_time = datetime(2021, 9, 1, 0, 0, 0) + timedelta(seconds=self.start_time_sec)
+        beginning_of_day = Sim_start_time.replace(hour=0, minute=0, second=0)
+        Sim_end_time = datetime(2021, 9, 1, 0, 0, 0) + timedelta(seconds=self.horizon_sec)
+        time_index = pd.date_range(start=self.start_time_sec, end=self.horizon_sec, freq=timedelta(seconds=self.timestep_sec))
         all_ev_power_profiles = pd.DataFrame(index=time_index)
         all_ev_energy_profiles = pd.DataFrame(index=time_index)
         all_charging_events_evaluation = []
+        time_now = Sim_start_time+timedelta(seconds=federate_time)
+        print(f'time now: {time_now}')
         # get CEs from caldera into charging stations
         CE_by_extCS = Caldera_state_info_dict[Caldera_message_types.get_active_charge_events_by_extCS]
         if self.ce_ext_strategy in CE_by_extCS.keys():
             active_CEs = CE_by_extCS[self.ce_ext_strategy]
         else: 
+            print(f'no transformer controls at timestep: {federate_time}')
             ev_control_setpoints = {}
-            Caldera_control_info_dict, DSS_state_info_dict, ev_control_setpoints 
+            return Caldera_control_info_dict, DSS_state_info_dict, ev_control_setpoints 
 
         # get baseload by node and transformer info from opendss
         baseloads = DSS_state_info_dict[OpenDSS_message_types.get_basenetloads]
-        # TODO: make method that get get transformer info
+        print(f'baseloads {baseloads}')
         unique_vehicles_per_transformer = {}
         for CE in active_CEs:
             SE_id = CE.SE_id
-            trns_name = self.trns_by_seid[SE_id]
-            if not trns_name in unique_vehicles_per_transformer:
-                unique_vehicles_per_transformer[trns_name] = [SE_id]
+            if SE_id in self.trns_by_seid:
+                trns_name = self.trns_by_seid[SE_id]
+                if not trns_name in unique_vehicles_per_transformer:
+                    unique_vehicles_per_transformer[trns_name] = [SE_id]
+                else:
+                    unique_vehicles_per_transformer[trns_name].append(SE_id)
             else:
-                unique_vehicles_per_transformer[trns_name].append(SE_id)
+                print(f'WARNING: SE_id {SE_id} not in self.trns_by_seid')
             
 
         for transformer_id in unique_vehicles_per_transformer.keys():
             # one management system for each group of EVSE
-            self.management_system = ChargingManagementSystem(capacity_series_1min['Capacity'], allocation_method=method)
+            management_system = {}
             transformer_id_str = str(transformer_id)
             se_ids = unique_vehicles_per_transformer[transformer_id]#row['Unique_Vehicles']
             
@@ -147,63 +167,73 @@ class transformer_control():
 
             # Extract the available capacity time series for the corresponding transformer from the tf_capacity_available_KW
             capacity = self.trns_kva[transformer_id_str]#tf_capacity_available_KW[transformer_id_str].to_frame(name='Capacity')
+            print(f'nodes_by_trns: {self.nodes_by_trns[transformer_id]}')
             for node in self.nodes_by_trns[transformer_id]:
                 if node in baseloads.keys():
                     capacity = capacity + np.array(baseloads[node])
             
-            #capacity_series_monthly.index = pd.to_datetime(capacity_series_monthly.index.tz_localize(None))
-            #capacity_series_monthly.index = pd.to_datetime(capacity_series_monthly.index)
+
             # subtract the baseload for all subsequent nodes 
-            # capacity_series_1min = capacity_series_monthly.loc[Sim_start_time:Sim_end_time].resample('1T').ffill()
             # Ensure the capacity series covers the full simulation period
-            full_index = pd.date_range(start=self.start_time_sec, end=self.horizon_sec, freq='1T')
-            capacity_series_1min = capacity_series_monthly.reindex(full_index, method='ffill')
+            frequency = timedelta(seconds=self.timestep_sec)
+            full_index = pd.date_range(start=Sim_start_time, end=Sim_end_time, freq=frequency)
+            # this version does not have forecasting
+            capacity_series = pd.DataFrame([capacity]*len(full_index), index=full_index) # make the float into a series of the correct length.
+            management_system = ChargingManagementSystem(capacity_series, allocation_method=self.name)#method)
 
             
             event_index = 0
             for CE in active_CEs:
-                if self.trns_by_seid[CE.SE_id] == transformer_id:
-                    park_start_time = pd.to_datetime(event['park_start_timestamp']).floor('T').time()
-                    park_start_timestamp = datetime.combine(Sim_start_time.date(), park_start_time)
-                    duration = round(event['park_time_seconds'] / 60)  # Total connection time in minutes
+                if CE.SE_id in self.trns_by_seid:
+                    if self.trns_by_seid[CE.SE_id] == transformer_id:
+                        event = self.CE_df[self.CE_df['charge_event_id']==CE.charge_event_id].to_dict('records')[0]
+                        #park_start_time = event['start_time']
+                        #park_start_timestamp = Sim_start_time.replace(hour=0, minute=0, second=0) + timedelta(minutes=park_start_time)
+                        duration = beginning_of_day + timedelta(minutes=event['end_time_prk']) - time_now #event['end_time_prk']-event['start_time']  # Total connection time in minutes
 
-                    energy_need = event['energy_kwh']
-                    start_soc = event['start_soc']
-                    max_charge_rate = event['Max AC Power kW']
-                    charging_time_uncontrol = event['charging_time_uncontrol']
+                        energy_need = CE.energy_of_complete_charge_ackWh - CE.now_charge_energy_ackWh#event['energy_kwh']
+                        start_soc = CE.now_soc#event['soc_i']
+                        charging_time_uncontrol = beginning_of_day + timedelta(minutes=event['end_time_prk']) - time_now #event['end_time_chg']-event['start_time']  # Total connection time in minutes#event['charging_time_uncontrol']
+                        # use the vehicle and evse type to provide max charge power
+                        ev_type = event['pev_type']
+                        vehicle_max_charge_rate = self.ev_inputs[self.ev_inputs['EV_type']==ev_type]['AC_charge_rate_kW'].values[0]
+                        evse_type = self.SE_df[self.SE_df['SE_id']==CE.SE_id]['SE_type'].values[0]
+                        evse_max_charge_rate = self.evse_inputs[self.evse_inputs['EVSE_type']==evse_type]['AC/DC_power_limit_kW'].values[0]
+                        max_charge_rate = min(vehicle_max_charge_rate, evse_max_charge_rate)
 
-                    # Create EV object with event_row_index
-                    ev = EV(
-                        transformer_id=transformer_id,
-                        ev_id=CE.SE_id,
-                        premise_id=CE.SE_id,
-                        plug_in_time=park_start_timestamp,
-                        duration=duration,
-                        start_SOC=start_soc,
-                        energy_need=energy_need,
-                        max_charge_rate=max_charge_rate,
-                        event_index=event_index,
-                        charging_time_uncontrol=charging_time_uncontrol)  # Add this line
-                    print(f"EV {ev.ev_id} added to the CMS list, Charge Event Index: {ev.event_index}, Transformer ID: {ev.transformer_id}, Plug-in Time: {ev.plug_in_time}, Duration: {ev.duration}, Start SOC: {ev.start_SOC}, Energy Need: {ev.energy_need}, Max Charge Rate: {ev.max_charge_rate} ")
+                        # Create EV object with event_row_index
+                        ev = EV(
+                            transformer_id=transformer_id,
+                            ev_id=CE.SE_id,
+                            premise_id=CE.SE_id,
+                            plug_in_time=time_now,
+                            duration=duration,
+                            start_SOC=start_soc,
+                            energy_need=energy_need,
+                            max_charge_rate=max_charge_rate,
+                            event_index=event_index,
+                            charging_time_uncontrol=charging_time_uncontrol)  # Add this line
+                        print(f"EV {ev.ev_id} added to the CMS list, Charge Event Index: {ev.event_index}, Transformer ID: {ev.transformer_id}, Plug-in Time: {ev.plug_in_time}, Duration: {ev.duration}, Start SOC: {ev.start_SOC}, Energy Need: {ev.energy_need}, Max Charge Rate: {ev.max_charge_rate} ")
+                
+                        management_system.add_ev(ev)
+                        event_index = event_index+1
+
+                    management_system.simulate(Sim_start_time+timedelta(seconds=federate_time), Sim_end_time, time_step=timedelta(seconds=self.timestep_sec))
+                
+                    ev_power_profiles, ev_energy_profiles = management_system.get_ev_data()
+                    charging_events_evaluation = management_system.get_charging_events_evaluation()
+
+                    # get into Caldera accepted formate of SE_setpoint
+                    for ev in management_system.station.connected_evs:
+                        X = SE_setpoint()
+                        X.SE_id = int(ev.ev_id)
+                        ev_event_id = f"{ev.ev_id}_{ev.event_index}"
+                        X.PkW = management_system.ev_power_series.at[management_system.current_time, ev_event_id]
+                        X.QkVAR = 0
+                        PQ_setpoints.append(X)
             
-                    management_system.add_ev(ev)
-                    event_index = event_index+1
 
-                management_system.simulate(Sim_start_time, Sim_end_time, time_step=timedelta(seconds=self.timestep_sec))  # simulation resolution 1 min
-            
-                ev_power_profiles, ev_energy_profiles = management_system.get_ev_data()
-                charging_events_evaluation = management_system.get_charging_events_evaluation()
-
-                # get into Caldera accepted formate of SE_setpoint
-                for ev in management_system.station.connected_evs:
-                    X = SE_setpoint()
-                    X.SE_id = int(ev.ev_id)
-                    ev_event_id = f"{ev.ev_id}_{ev.event_index}"
-                    X.PkW = management_system.ev_power_series.at[management_system.current_time, ev_event_id]
-                    X.QkVAR = 0
-                    PQ_setpoints.append(X)
-            
-
+        print(f'transformer control setpoints: {PQ_setpoints}')
         # send to caldera
         Caldera_control_info_dict = {}
         if len(PQ_setpoints)>0:
@@ -258,7 +288,8 @@ class ChargingManagementSystem:
     def __init__(self, capacity_series, allocation_method='uncontrol'):
         self.station = ChargingStation()
         self.current_time = None
-        self.capacity_series = capacity_series
+        self.capacity_series = capacity_series # this is a list of transformer capacity-baseload
+        # 0th index aligns with the initial condition at the start time, 1st index aligns with firsttimestep
         self.available_capacity_series = pd.Series(dtype=float, index=capacity_series.index)
         self.ev_power_series = pd.DataFrame(index=capacity_series.index)
         self.ev_energy_series = pd.DataFrame(index=capacity_series.index)
@@ -311,8 +342,8 @@ class ChargingManagementSystem:
         
         for ev in sorted_evs:
             if ev.is_connected(self.current_time):
-                if remaining_capacity >= 1.44:
-                    allocatable_power = max(min(remaining_capacity, ev.max_charge_rate), 1.44)
+                if remaining_capacity >= 1.2: #1.44:
+                    allocatable_power = max(min(remaining_capacity, ev.max_charge_rate), 1.2)#1.44)
                     ev.allocated_power = allocatable_power
                     remaining_capacity -= ev.allocated_power
                 else:
@@ -375,7 +406,7 @@ class ChargingManagementSystem:
         total_capacity = self.capacity_series[self.current_time]
         num_evs = len(connected_evs)
         equal_power = total_capacity / num_evs
-        min_power = 1.44  # Minimum power allocation (kW)
+        min_power = 1.2#1.44  # Minimum power allocation (kW)
 
         if equal_power >= min_power:
             # Allocate equal power to all EVs
