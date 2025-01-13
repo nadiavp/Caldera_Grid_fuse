@@ -281,7 +281,7 @@ class open_dss_external_control:
                     dss.LoadShape.Name(loadshape_name)
                     load_profile = base_kva_0*dss.LoadShape.PMult()
                     # sample only the ones for this time
-                    loadshape_tstep = dss.LoadShape.MinInterval()
+                    loadshape_tstep = int(dss.LoadShape.MinInterval())
                     load_profile = np.interp(time_steps_desired, range(0, loadshape_tstep*len(load_profile),loadshape_tstep), load_profile)
                     # store the sample
                     netload[loadbusname] = netload[loadbusname] + load_profile
@@ -297,14 +297,41 @@ class open_dss_external_control:
                 dss.LoadShape.Name(loadshape_name)
                 pv_profile = kva_rated*dss.LoadShape.PMult()
                 # sample only the ones for this time
-                loadshape_tstep = dss.LoadShape.HrInterval()
+                loadshape_tstep = int(dss.LoadShape.HrInterval())
                 pv_profile = np.interp(time_steps_desired, range(0, loadshape_tstep*len(pv_profile),loadshape_tstep), pv_profile)
                 # storage the sample
                 netload[bus_name] = netload[bus_name] + load_profile
             i_pv = dss.PVsystems.Next()
+        # if there arent any pv or storage, do it for all load buses
+        #print(f'netloads: {netload} \n getting all load bus loadshapes')
+        if len(netload.keys())== 0:
+            i_load = dss.Loads.First()
+            while i_load>0:
+                loadshape_name = dss.Loads.Daily()
+                base_kva_0 = dss.Loads.kVABase()
+                loadbusname = dss.CktElement.BusNames()[0]
+                if len(loadshape_name)<1:
+                    loadshape_name = dss.Loads.Yearly()
+                if len(loadshape_name)>1:
+                    dss.LoadShape.Name(loadshape_name)
+                    load_profile = base_kva_0*dss.LoadShape.PMult()
+                    # sample only the ones for this time
+                    loadshape_tstep = int(dss.LoadShape.MinInterval())
+                    #print(f'load: {dss.Loads.Name()}, loadshape_tstep:{loadshape_tstep}, load_profile:{load_profile}')
+                    load_profile = np.interp(time_steps_desired, range(0, loadshape_tstep*len(load_profile),loadshape_tstep), load_profile)
+                else: # if there is no loadshape, assume a constant load
+                    load_profile = np.array([base_kva_0]*n_steps)
+                # store the sample
+                if loadbusname in netload.keys():
+                    netload[loadbusname] = netload[loadbusname] + load_profile
+                else:
+                    netload[loadbusname] = load_profile
+                #print(f'loadshape at {loadbusname} with profile {load_profile}')
+                i_load = dss.Loads.Next()
         # convert numpy arrays to lists
         for busname in netload.keys():
             netload[busname] = netload[busname].tolist()
+        #print(f'returning netload: {netload}')
         return netload
 
 
