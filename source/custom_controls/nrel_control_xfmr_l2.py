@@ -176,7 +176,7 @@ class transformer_control():
             for node in self.nodes_by_trns[transformer_id]:
                 #node = node.split('.')[0]
                 if node in baseloads.keys():
-                    capacity = capacity + np.array(baseloads[node])
+                    capacity = capacity - np.array(baseloads[node])
                     #print(f'node: {node} capacity subtracted according to baseload')
                 #else:
                 #    #print(f'node: {node} not in baseloads')
