@@ -112,6 +112,7 @@ class transformer_control():
         self.trns_kva = trns_kva
         self.trns_by_seid = trns_by_seid
         self.nodes_by_trns = trns_nodes
+        #print(f'nodes by trns: {self.nodes_by_trns}')
 
     def solve(self, federate_time, Caldera_state_info_dict, DSS_state_info_dict):#df_unique_vehicles_per_transformer, CEs_feeder_day, tf_capacity_available_KW):
         ev_control_setpoints = {}
@@ -142,14 +143,14 @@ class transformer_control():
         unique_vehicles_per_transformer = {}
         for CE in active_CEs:
             SE_id = CE.SE_id
-            if SE_id in self.trns_by_seid:
-                trns_name = self.trns_by_seid[SE_id]
-            else:
-                trns_name=f'seid_trns_{SE_id}'
-                print(f'WARNING: SE_id {SE_id} not in self.trns_by_seid, assuming 50kva')
-                self.trns_by_seid[SE_id] = trns_name
-                self.trns_kva[trns_name] = 50
-                self.nodes_by_trns[trns_name] = self.SE_df[self.SE_df['SE_id']==SE_id]['node_id']
+            #if SE_id in self.trns_by_seid:
+            trns_name = self.trns_by_seid[SE_id]
+            #else:
+            #    trns_name=f'seid_trns_{SE_id}'
+            #    print(f'WARNING: SE_id {SE_id} not in self.trns_by_seid, assuming 50kva')
+            #    self.trns_by_seid[SE_id] = trns_name
+            #    self.trns_kva[trns_name] = 50
+            #    self.nodes_by_trns[trns_name] = self.SE_df[self.SE_df['SE_id']==SE_id]['node_id']
             if not trns_name in unique_vehicles_per_transformer:
                 unique_vehicles_per_transformer[trns_name] = [SE_id]
             else:
@@ -173,11 +174,12 @@ class transformer_control():
             capacity = self.trns_kva[transformer_id_str]#tf_capacity_available_KW[transformer_id_str].to_frame(name='Capacity')
             #print(f'nodes_by_trns: {self.nodes_by_trns[transformer_id]}')
             for node in self.nodes_by_trns[transformer_id]:
-                node = node.split('.')[0]
+                #node = node.split('.')[0]
                 if node in baseloads.keys():
                     capacity = capacity + np.array(baseloads[node])
-                else:
-                    print(f'node: {node} not in baseloads')
+                    #print(f'node: {node} capacity subtracted according to baseload')
+                #else:
+                #    #print(f'node: {node} not in baseloads')
             
 
             # subtract the baseload for all subsequent nodes 
