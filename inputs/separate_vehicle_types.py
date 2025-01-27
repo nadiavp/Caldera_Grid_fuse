@@ -2,8 +2,9 @@ import pandas as pd
 
 
 # update the next line with the CE file you need to update
-ce_file_name = 'CE_longdwell_Sep_Hanover_01359.csv'#'CE_Sep_Shellbank_22700.csv'
-se_file_name = 'SE_longdwell_Sep_Hanover_01359.csv'
+feeder_name = 'Hanover_01359'
+ce_file_name = 'CE_longdwell_Sep_' + feeder_name + '.csv'
+se_file_name = 'SE_longdwell_Sep_' + feeder_name + '.csv'
 
 # names must be of length 7 and start with ext
 # if they include reactive power control they must be of length 8 and end with q
