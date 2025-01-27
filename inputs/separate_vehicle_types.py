@@ -13,7 +13,9 @@ emissions_control = 'ext0002'
 depot_control = 'ext0003' # this is the same as BTMS control
 transformer_control = 'ext0004' 
 voltwatt_control = 'ext0005q'
-TOU = 'ES100-A'
+TOU = 'ES100-A' # enum is 6
+#from Caldera_globals import L2_control_strategies_enum # the TOU enum is 6
+tou_enum = 6
 uncontrolled = 'NA'
 
 
@@ -54,7 +56,7 @@ for i, charge_event in tmp_df.iterrows():
     
             tmp_df.at[i,'Ext_strategy'] = 'NA'
             tmp_df.at[i,'VS_strategy'] = 'NA'
-            tmp_df.at[i,'ES_strategy'] = control_code
+            tmp_df.at[i,'ES_strategy'] = tou_enum
         else:
             tmp_df.at[i,'Ext_strategy'] = control_code
             tmp_df.at[i,'VS_strategy'] = 'NA'

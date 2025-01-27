@@ -257,9 +257,10 @@ if __name__ == '__main__':
     num_of_federates += 1   # Caldera_ICM
     num_of_federates += 1   # OpenDSS
     num_of_federates += 1   # Caldera_ES500
-    num_of_federates += 1   # control_strategy_A
-    num_of_federates += 1   # control_strategy_B
-    #num_of_federates += 1   # control_strategy_C
+    num_of_federates += 1   # control_strategy depot
+    num_of_federates += 1   # control_strategy market
+    num_of_federates += 1   # control_strategy emissions
+    num_of_federates += 1   # control strategy transformer
     
     broker = subprocess.Popen(['helics_broker', '--loglevel=no_print', '-f{}'.format(num_of_federates)])
     #broker = subprocess.Popen(['helics_broker', '-f{}'.format(num_of_federates)])
@@ -304,9 +305,9 @@ if __name__ == '__main__':
     #   Control Strategy_B Federate
     #-------------------------------
     json_config_file_name = 'control_strategy_B.json'
-    #CS_B_obj = btms_control(io_dir, simulation_time_constraints, input_se_csv='inputs/SE_longdwell_Sep_Hanover_01359.csv')    
-    #p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_B_obj,), name="control_strategy_B_federate")
-    #processes.append(p)
+    CS_B_obj = btms_control(io_dir, simulation_time_constraints, input_se_csv=f'inputs/SE_longdwell_Sep_{feeder_name}.csv', ce_ext_strategy='ext0003')    
+    p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_B_obj,), name="control_strategy_B_federate")
+    processes.append(p)
     
     #-------------------------------
     #   Control Strategy_C Federate
@@ -335,11 +336,11 @@ if __name__ == '__main__':
     #------------------------------
     #   Emissions Control Federate
     #------------------------------
-    #json_config_file_name = 'control_strategy_emissions.json'
-    #CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv=f'inputs/SE_longdwell_Sep_{feeder_name}.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv'
-    #    name='emissions', helics_config_path=json_config_file_name, feeder_name=feeder_name, input_ce_csv=f'inputs/CE_longdwell_Sep_{feeder_name}.csv', ce_ext_strategy="ext0003", se_group=[10]) #
-    #p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='emissions_control_federate')
-    #processes.append(p)
+    json_config_file_name = 'control_strategy_emissions.json'
+    CS_M_obj = market_control(io_dir, simulation_time_constraints, input_se_csv=f'inputs/SE_longdwell_Sep_{feeder_name}.csv', #SE_Sep_Shellbank_22700_24hr.csv',input_se_csv='inputs/SE_Sep_Shellbank_22700.csv'
+        name='emissions', helics_config_path=json_config_file_name, feeder_name=feeder_name, input_ce_csv=f'inputs/CE_longdwell_Sep_{feeder_name}.csv', ce_ext_strategy="ext0002", se_group=[10]) #
+    p = Process(target=typeB_control_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, CS_M_obj), name='emissions_control_federate')
+    processes.append(p)
 
     #------------------------------
     #   Transformer Control Federate

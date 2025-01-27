@@ -29,9 +29,10 @@ software.
 
 class btms_control(typeB_control):
     
-    def __init__(self, base_dir, simulation_time_constraints, input_se_csv='inputs/SE_.csv'):        
+    def __init__(self, base_dir, simulation_time_constraints, input_se_csv='inputs/SE_.csv', ce_ext_strategy='ext0002'):        
         super().__init__(base_dir, simulation_time_constraints)
         
+        self.ext_strategy = ce_ext_strategy
         self.control_timestep_min = 15
         self.request_state_lead_time_min = 10.1
         self.send_control_info_lead_time_min = (simulation_time_constraints.grid_timestep_sec + 0.5)/60
@@ -51,7 +52,7 @@ class btms_control(typeB_control):
     
     def terminate_this_federate(self):
         #print(self.datasets_dict[input_datasets.external_strategies])
-        if "ext0003" in self.datasets_dict[input_datasets.external_strategies]:
+        if self.ext_strategy in self.datasets_dict[input_datasets.external_strategies]:
             print(f'running with btms_ld_l2 federate')
             return False
         #elif "ext0001q" in self.datasets_dict[input_datasets.external_strategies]:
