@@ -166,13 +166,13 @@ if __name__ == '__main__':
     if args["start_time_sec"] != None:
         start_simulation_unix_time = int(args["start_time_sec"])
     #else:
-    start_simulation_unix_time = 60*60* 6 # starting at 6 am (but 1 timestep ahead) on Thursday (4th day of EV DATA) #120
+    start_simulation_unix_time = int(77.75*3600) # starting at 6 am (but 1 timestep ahead) on Thursday (4th day of EV DATA)
 
     # Set the end time.
     if args["end_time_sec"] != None:
         end_simulation_unix_time = int(args["end_time_sec"])
     #else:
-    end_simulation_unix_time = 78*3600
+    end_simulation_unix_time = 150*3600
 
     # The flag to use or not use OpenDSS
     if args["use_opendss"] != None and ( (isinstance(args["use_opendss"], str) and args["use_opendss"].lower() == "true") or args["use_opendss"] == True ):
@@ -195,14 +195,14 @@ if __name__ == '__main__':
     
     ## P added 
     # feeder folders should be inside opendss folder
-    feeder_name ='Hanover_01359' # 'Mercury_22370' # "ieee34"'Shellbank_22700' #
+    feeder_name ='Hanover_01359' # 'Mercury_22370' # "ieee34" #'Shellbank_22700' #
     scenario_name = "uncontrolled"
     
     # The full path to Master dss file
     if args["dss_full_path"] != None:
         dss_full_path = args["dss_full_path"]
     else:
-        dss_full_path = os.path.join(path_to_here, 'opendss', feeder_name, 'Master.dss') # TODO
+        dss_full_path = os.path.join(path_to_here, 'opendss', feeder_name, 'Master.dss')
     print('OpenDSS master file full path:', dss_full_path)
     
     
