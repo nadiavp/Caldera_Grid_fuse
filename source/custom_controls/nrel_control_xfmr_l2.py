@@ -102,9 +102,22 @@ class transformer_control():
             dss.Transformers.Name(trns)
             node_names = dss.CktElement.BusNames()
             trns_kva[trns] = dss.Transformers.kVA()
+            # if the node name ends in .1.2.3 then it has three buses to it and so add the three separate lines to the list
+            for node_name in node_names:
+                buses_fed_by_node = node_name.split('.')
+                if len(buses_fed_by_node)>2: # if it's 0 or 1 then it just feeds th one bus, if it's 2 or 3 then it feeds .1.2.3 or .1.3 or similar
+                    node_base = buses_fed_by_node[0]
+                    node_names.append(node_base)
+                    for bus in buses_fed_by_node[1:]:
+                        node_names.append(node_base+'.'+bus)
+                #if node_name.endswith('.1.2.3'):
+                #    node_names.append(node_name.replace('.1.2.3','.1'))
+                #    node_names.append(node_name.replace('.1.2.3','.2'))
+                #    node_names.append(node_name.replace('.1.2.3','.3'))
+                #    node_names.append(node_name.replace('.1.2.3',''))
             trns_nodes[trns] = node_names
-        # map the nodes to SE_id and create a transformer by SE_id list
-        # there could be multiple SE_ids that go to one transformer
+            # map the nodes to SE_id and create a transformer by SE_id list
+            # there could be multiple SE_ids that go to one transformer
             for node_name in node_names:
                 SE_ids = SE_df[SE_df['node_id']==node_name]['SE_id']
                 for SE_id in SE_ids:
@@ -112,7 +125,8 @@ class transformer_control():
         self.trns_kva = trns_kva
         self.trns_by_seid = trns_by_seid
         self.nodes_by_trns = trns_nodes
-        #print(f'nodes by trns: {self.nodes_by_trns}')
+        #print(f'nodes by trns: {self.nodes_by_trns}')'
+        #print(f'trns by seid: {self.trns_by_seid}')
 
     def solve(self, federate_time, Caldera_state_info_dict, DSS_state_info_dict):#df_unique_vehicles_per_transformer, CEs_feeder_day, tf_capacity_available_KW):
         ev_control_setpoints = {}
@@ -143,14 +157,14 @@ class transformer_control():
         unique_vehicles_per_transformer = {}
         for CE in active_CEs:
             SE_id = CE.SE_id
-            #if SE_id in self.trns_by_seid:
-            trns_name = self.trns_by_seid[SE_id]
-            #else:
-            #    trns_name=f'seid_trns_{SE_id}'
-            #    print(f'WARNING: SE_id {SE_id} not in self.trns_by_seid, assuming 50kva')
-            #    self.trns_by_seid[SE_id] = trns_name
-            #    self.trns_kva[trns_name] = 50
-            #    self.nodes_by_trns[trns_name] = self.SE_df[self.SE_df['SE_id']==SE_id]['node_id']
+            if SE_id in self.trns_by_seid:
+                trns_name = self.trns_by_seid[SE_id]
+            else:
+                trns_name=f'seid_trns_{SE_id}'
+                print(f'WARNING: SE_id {SE_id} not in self.trns_by_seid, assuming 50kva')
+                self.trns_by_seid[SE_id] = trns_name
+                self.trns_kva[trns_name] = 50
+                self.nodes_by_trns[trns_name] = self.SE_df[self.SE_df['SE_id']==SE_id]['node_id']
             if not trns_name in unique_vehicles_per_transformer:
                 unique_vehicles_per_transformer[trns_name] = [SE_id]
             else:
@@ -226,11 +240,11 @@ class transformer_control():
                 
                         management_system.add_ev(ev)
                         event_index = event_index+1
-
-                    management_system.simulate(Sim_start_time+timedelta(seconds=federate_time), Sim_end_time, time_step=timedelta(seconds=self.timestep_sec))
+                    # only simulate one timestep
+                    management_system.simulate(Sim_start_time+timedelta(seconds=federate_time), Sim_start_time+timedelta(seconds=federate_time)+timedelta(seconds=self.timestep_sec), time_step=timedelta(seconds=self.timestep_sec))
                 
                     ev_power_profiles, ev_energy_profiles = management_system.get_ev_data()
-                    charging_events_evaluation = management_system.get_charging_events_evaluation()
+                    #charging_events_evaluation = management_system.get_charging_events_evaluation()
 
                     # get into Caldera accepted formate of SE_setpoint
                     for ev in management_system.station.connected_evs:
@@ -528,23 +542,23 @@ class ChargingManagementSystem:
                 if ev.is_connected(self.current_time) or self.current_time + time_step > ev.plug_in_time + ev.duration:
                     ev.energy_charged += ev.allocated_power * (time_step.total_seconds() / 3600)  # energy = power * time (hours)
                     
-                    event_id = f"{ev.ev_id}_{ev.event_index}"
-                    energy_charged_id = f"{event_id} Energy Charged"
+                    #event_id = f"{ev.ev_id}_{ev.event_index}"
+                    #energy_charged_id = f"{event_id} Energy Charged"
 
-                    self.ev_power_series.at[self.current_time, event_id] = ev.allocated_power if ev.is_connected(self.current_time) else 0
-                    self.ev_energy_series.at[self.current_time, energy_charged_id] = ev.energy_charged
+                    #self.ev_power_series.at[self.current_time, event_id] = ev.allocated_power if ev.is_connected(self.current_time) else 0
+                    #self.ev_energy_series.at[self.current_time, energy_charged_id] = ev.energy_charged
                     
                     # Check if the EV is fully charged or if this is its last time step
                     if ev.energy_charged >= ev.energy_need or self.current_time + time_step > ev.plug_in_time + ev.duration:
                         ev.full_charge_flag = 1 if ev.energy_charged >= ev.energy_need else 0
                         ev.managed_charging_time = (self.current_time - ev.plug_in_time).total_seconds() / 60
-                        evaluation = self.evaluate_charging_event(ev)
-                        self.charging_events_evaluation.append(evaluation)
+                        #evaluation = self.evaluate_charging_event(ev)
+                        #self.charging_events_evaluation.append(evaluation)
                         
-                        if ev.full_charge_flag:
-                            print(f"EV {ev.ev_id}, Charge Event Index: {ev.event_index} fully charged. Time taken: {ev.managed_charging_time:.2f} minutes, allocation method: {self.allocation_method}, Evaluated: {evaluation}")
-                        else:
-                            print(f"EV {ev.ev_id}, Charge Event Index: {ev.event_index} did not get fully charged. Time taken: {ev.managed_charging_time:.2f} minutes, allocation method: {self.allocation_method}, Evaluated: {evaluation}")
+                        #if ev.full_charge_flag:
+                        #    print(f"EV {ev.ev_id}, Charge Event Index: {ev.event_index} fully charged. Time taken: {ev.managed_charging_time:.2f} minutes, allocation method: {self.allocation_method}, Evaluated: {evaluation}")
+                        #else:
+                        #    print(f"EV {ev.ev_id}, Charge Event Index: {ev.event_index} did not get fully charged. Time taken: {ev.managed_charging_time:.2f} minutes, allocation method: {self.allocation_method}, Evaluated: {evaluation}")
                         
                         self.station.remove_ev(ev)
 
