@@ -273,7 +273,7 @@ class btms_control(typeB_control):
             
             #Step 0 : All the input data required for BTM control
         
-            if bool(active_CEs):
+            if len_active_CEs>0:
                 group_id_Parse = group_id
                 #charge_event_id_Parse = charge_event_id[i,:]
                 SE_id_Parse = SE_id_CE[i,:]
