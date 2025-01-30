@@ -259,6 +259,7 @@ class btms_control(typeB_control):
                         #now_soc[i,j] = CE.now_soc
                         now_charge_energy_ackWh[i,j] = CE.now_charge_energy_ackWh
                         energy_of_complete_charge_ackWh[i,j] = CE.energy_of_complete_charge_ackWh
+                        #print(f'now_charge: {CE.now_charge_energy_ackWh}, energy_complete: {CE.energy_of_complete_charge_ackWh}')
                         remaining_charge_energy_ackWh[i,j] = energy_of_complete_charge_ackWh[i,j] - now_charge_energy_ackWh[i,j]
                         arrival_time[i,j] = now_unix_time[i,j]
                         #departure_time[i,j] = df_lookup._get_value((charge_event_id[i,j]-1),'end_time_prk')

@@ -95,9 +95,9 @@ class BTM_Control():
         
         hr_to_complete_charge = energy_remaining/max_power
         
-        min_to_start = int((math.floor(depart_time - hr_to_complete_charge*60*60) - current_time)/60)
-        if min_to_start < 0:
-            print(f'WARNING: not enough time to complete charge at {current_time}')
+        min_to_start = math.floor((depart_time - hr_to_complete_charge*60*60 - current_time)/60)
+        if min_to_start < 0 and energy_remaining>0:
+            #print(f'WARNING: not enough time to complete charge at {current_time}, energy_kWh:{energy_remaining}, evse_maxkW:{max_power}, min_to_start:{min_to_start}')
             min_to_start = 0
 
     
