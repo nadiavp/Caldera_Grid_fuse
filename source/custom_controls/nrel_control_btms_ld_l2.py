@@ -39,6 +39,8 @@ class btms_control(typeB_control):
         se_df = pd.read_csv(input_se_csv)
         se_df =se_df[['SE_id','node_id', 'SE_group']]
         self.se_group_by_bus = se_df.set_index('SE_id').to_dict()
+        self.se_groups = list(set(se_df['SE_group']))
+        self.evse_df = pd.read_csv('EVSE_inputs.csv')
         
     
     def get_input_dataset_enum_list(self):
@@ -102,6 +104,7 @@ class btms_control(typeB_control):
         SE_group_config = self.datasets_dict[input_datasets.SE_group_configuration]  
         self.se_group_config =SE_group_config      
         SEid_to_SE_type = self.datasets_dict[input_datasets.SEid_to_SE_type]
+        self.SEid_to_SE_type = SEid_to_SE_type
   
        
     def log_data(self):
@@ -110,8 +113,10 @@ class btms_control(typeB_control):
     
     def get_messages_to_request_state_info_from_Caldera(self, next_control_timestep_start_unix_time):
         return_dict = {}
-        #return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = [2] #Grid teams to update this
-        return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = ['ext0003']
+        #print(f'groups by bus: {self.se_groups}')
+        return_dict[Caldera_message_types.get_active_charge_events_by_SE_groups] = self.se_groups #Grid teams to update this
+        return_dict[Caldera_message_types.get_active_charge_events_by_extCS] = [self.ext_strategy] #['ext0003']
+
 
         # The return value (return_dict) must be a dictionary with Caldera_message_types as keys.
         # If there is nothing to return, return an empty dictionary.
@@ -169,7 +174,7 @@ class btms_control(typeB_control):
         #      Define BTM controller
         #=================================
         btm_control = BTM_Control(time_step_mins=5, ess_size=Storage_Capacity, max_power_ess=40, min_power_ess=-40, 
-                                  max_power_l2=7.2, min_power_l2=1.5, time_horizon=1)
+                                  max_power_l2=17.66, min_power_l2=1.5, time_horizon=1)
         # time_horizon is in hours
         #btm_control = BTM_Control(time_step_mins=5, ess_size=40, max_power_ess=40, min_power_ess=-40, 
         #                          max_power_l2=6.6, min_power_l2=1.5, time_horizon=5)
@@ -182,6 +187,13 @@ class btms_control(typeB_control):
         '''
 
         CE_by_SE_groups = Caldera_control_info_dict[Caldera_message_types.get_active_charge_events_by_SE_groups]
+        CE_by_ext = Caldera_control_info_dict[Caldera_message_types.get_active_charge_events_by_extCS]
+        #print(CE_by_ext)
+        # make a list of active SE_ids:
+        active_SEs = []
+        for CE in CE_by_ext[self.ext_strategy]:
+            active_SEs.append(CE.SE_id)
+
         Setpoint_updated = {} #Make sure this is empty at the beginning of calling this federate. 
         storage_powers_setpoints={} #Make sure this is empty at the beginning of calling this federate. 
 
@@ -204,19 +216,20 @@ class btms_control(typeB_control):
                 active_buses = []
                 i_ce = 0
                 for CE in active_CEs:
-                    len_active_CEs = len_active_CEs + 1
-                    #print(f'btms CE.SE_id: {CE.SE_id}')
-                    ce_bus = self.se_group_by_bus['node_id'][CE.SE_id]
-                    if ce_bus in storage_buses:
-                        i_storage = storage_buses.index(ce_bus)
-                        storages_involved.append(i_storage)
-                        bus_load_without_ev_ess.append(Net_load[ce_bus])
-                        #ces_with_storage.append(i_ce)
-                        active_buses.append(ce_bus)
-                        storage_at_bus = True
-                    else:
-                        bus_load_without_ev_ess = list(np.zeros(int(btm_control.time_horizon*60/btm_control.time_step_mins)))
-                    i_ce = i_ce+1
+                    if CE.SE_id in active_SEs:
+                        len_active_CEs = len_active_CEs + 1
+                        #print(f'btms CE.SE_id: {CE.SE_id}')
+                        ce_bus = self.se_group_by_bus['node_id'][CE.SE_id]
+                        if ce_bus in storage_buses:
+                            i_storage = storage_buses.index(ce_bus)
+                            storages_involved.append(i_storage)
+                            bus_load_without_ev_ess.append(Net_load[ce_bus])
+                            #ces_with_storage.append(i_ce)
+                            active_buses.append(ce_bus)
+                            storage_at_bus = True
+                        else:
+                            bus_load_without_ev_ess = list(np.zeros(int(btm_control.time_horizon*60/btm_control.time_step_mins)))
+                        i_ce = i_ce+1
                 # remove duplicates
                 storages_involved = list(set(storages_involved))
                 
@@ -234,24 +247,23 @@ class btms_control(typeB_control):
                 remaining_charge_energy_ackWh = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.float64)
                 arrival_time = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.float64)
                 departure_time = np.zeros((len(CE_by_SE_groups),len_active_CEs),dtype=np.float64)
-                
  
                 j = 0  #i for interating through active_CE
                 for CE in active_CEs:
-                    
-                    SE_id_CE[i,j] = CE.SE_id
-                    #print(SE_id_CE)
-                    #charge_event_id[i,j] = CE.charge_event_id
-                    #print(charge_event_id)
-                    now_unix_time[i,j] = CE.now_unix_time
-                    #now_soc[i,j] = CE.now_soc
-                    now_charge_energy_ackWh[i,j] = CE.now_charge_energy_ackWh
-                    energy_of_complete_charge_ackWh[i,j] = CE.energy_of_complete_charge_ackWh
-                    remaining_charge_energy_ackWh[i,j] = energy_of_complete_charge_ackWh[i,j] - now_charge_energy_ackWh[i,j]
-                    arrival_time[i,j] = now_unix_time[i,j]
-                    #departure_time[i,j] = df_lookup._get_value((charge_event_id[i,j]-1),'end_time_prk')
-                    departure_time[i,j] = self.deptTime_lookup[CE.charge_event_id]
-                    j = j + 1
+                    if CE.SE_id in active_SEs:
+                        SE_id_CE[i,j] = CE.SE_id
+                        #print(SE_id_CE)
+                        #charge_event_id[i,j] = CE.charge_event_id
+                        #print(charge_event_id)
+                        now_unix_time[i,j] = CE.now_unix_time
+                        #now_soc[i,j] = CE.now_soc
+                        now_charge_energy_ackWh[i,j] = CE.now_charge_energy_ackWh
+                        energy_of_complete_charge_ackWh[i,j] = CE.energy_of_complete_charge_ackWh
+                        remaining_charge_energy_ackWh[i,j] = energy_of_complete_charge_ackWh[i,j] - now_charge_energy_ackWh[i,j]
+                        arrival_time[i,j] = now_unix_time[i,j]
+                        #departure_time[i,j] = df_lookup._get_value((charge_event_id[i,j]-1),'end_time_prk')
+                        departure_time[i,j] = self.deptTime_lookup[CE.charge_event_id]
+                        j = j + 1
                     
                 btm_control.num_of_active_evse = j
             else:
@@ -264,13 +276,16 @@ class btms_control(typeB_control):
                 group_id_Parse = group_id
                 #charge_event_id_Parse = charge_event_id[i,:]
                 SE_id_Parse = SE_id_CE[i,:]
+                se_type = self.SEid_to_SE_type[SE_id_Parse[0]]
+                btm_control.max_power_l2 = self.evse_df[self.evse_df['EVSE_type']==se_type]['AC/DC_power_limit_kW'].values[-1]
  
                 now_unix_time_Parse = now_unix_time[i,:]
                 arrival_times_Parse = arrival_time[i,:]
-                #print('arrival times', self.arrival_times)
+                #print('arrival times', arrival_times_Parse)
                 departure_times_Parse = departure_time[i,:]
-                #print('departure_times', self.departure_times)
-                #charging_times_Parse = departure_times_Parse - arrival_times_Parse
+                #print('departure_times', departure_times_Parse)
+                charging_times_Parse = departure_times_Parse - arrival_times_Parse
+                #print('charging times', charging_times_Parse)
                 energy_used_Parse = remaining_charge_energy_ackWh[i,:]
                 #SE_group_NODE_Parse = SE_group_NODE[group_id]
                 
@@ -365,15 +380,16 @@ class btms_control(typeB_control):
         if bool(Setpoint_updated):
             for (group_id, active_CEs) in CE_by_SE_groups.items():
                 for CE in active_CEs:
-                    remaining_charge_energy_ackWh = CE.energy_of_complete_charge_ackWh - CE.now_charge_energy_ackWh
-                    if 0 < remaining_charge_energy_ackWh:
-                        X = SE_setpoint()
-                        X.SE_id = CE.SE_id
-                        for (SE_id, setpoint) in Setpoint_updated.items():
-                            if  SE_id ==  X.SE_id:
-                                X.PkW = setpoint
-                                X.QkVAR = 0
-                                PQ_setpoints.append(X)
+                    if CE.SE_id in active_SEs:
+                        remaining_charge_energy_ackWh = CE.energy_of_complete_charge_ackWh - CE.now_charge_energy_ackWh
+                        if 0 < remaining_charge_energy_ackWh:
+                            X = SE_setpoint()
+                            X.SE_id = CE.SE_id
+                            for (SE_id, setpoint) in Setpoint_updated.items():
+                                if  SE_id ==  X.SE_id:
+                                    X.PkW = setpoint
+                                    X.QkVAR = 0
+                                    PQ_setpoints.append(X)
 
             
         #-----------------------------
