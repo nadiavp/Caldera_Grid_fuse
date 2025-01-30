@@ -204,10 +204,10 @@ class btms_control(typeB_control):
             i = i + 1   #i for interating trhough group node
             i_storage = -1
             storage_at_bus = False
+            len_active_CEs= 0
             
             if bool(active_CEs):
                 print('BTM: Found active charge event')
-                len_active_CEs= 0
                 # find storage at buses with actie charge events
                 
                 storages_involved = []
