@@ -4,8 +4,10 @@
 ### max charging and discharging power, and min charging and discharing power
 ### all values here are in kW or kva
 import pandas as pd
+import numpy as np
 from opendssdirect import dss
 import sys
+import os
 
 def get_load_points(dss_loads=[], load_threshold=0, pv_threshold=5):
     # only add the load point if the threshold is above 350kw
@@ -79,6 +81,68 @@ def get_btms_siting(opendss_file):
     bess_df = assign_battery_sizes(bus_df)
     return bess_df
 
+def add_btms_to_opendss_model(opendss_main_file, bess_df):
+    print(f'creating dss file of storage from {opendss_file}')
+    bess_file_name = 'BTM_BESS_and_PV.dss'
+    bess_dss_file = opendss_main_file.replace('Master.dss',bess_file_name)
+    # load the opendss model so that you can get the bus phases and voltages later
+    if not os.path.exists(opendss_main_file):
+        print(f'opendss file: {opendss_main_file} does not exist, continuing to next feeder')
+        return
+    
+    dss.Command(f'Redirect {opendss_main_file}')
+    # initialize list of new storage and solar
+    storage_pv_str_list = []
+    bus_phases = 1
+    # add all the storage and PV as a lines in a new file
+    bess_keys = bess_df.columns.values
+    for index, bess_i in bess_df.iterrows():
+        # get the sizing info
+        # if the info hasn't been calculated, calculate it
+        if not 'node_name' in bess_keys:
+            #print(f'index: {index} bess_i: {bess_i}')
+            bus_name = bess_i[0]
+            peak_kw = bess_i['peak_kW']
+            pv_size = np.round(peak_kw*0.25) # a quarter of the peak power
+            power_size = pv_size/2 # half the kw of the pv array
+            energy_size = power_size*4 # 4 hours of max power
+        else:
+            bus_name = bess_i['node_name']
+            power_size = bess_i['batt_kW']
+            energy_size = bess_i['batt_kWh']
+            pv_size = bess_i['pv_kW']
+        #bus_phases = len(bus_name.split('.'))-1
+        # get the voltage from the bus name
+        dss.Circuit.SetActiveBus(bus_name)
+        bus_voltage = dss.Bus.kVBase()
+        bus_phases = len(dss.Bus.Voltages())
+        # if you have multiple phases on the bus, pick the first one to attach the pv and storage
+        if bus_phases>1:
+            bus_phases = 1
+            bus_name = bus_name.split('.')[0] + '.' + bus_name.split('.')[1]
+        # add storages
+        new_storage_str = f"New Storage.{bus_name} phases={bus_phases} Bus1={bus_name} kV={bus_voltage}  kW={power_size}  kWrated={power_size}  kWhrated={energy_size} dispmode=external"
+        storage_pv_str_list.append(new_storage_str)
+        # add PV
+        if pv_size>0:
+            new_pv_str = f"New PVSystem.{bus_name} bus1={bus_name} phases={bus_phases} kV={bus_voltage} kVA={pv_size} Pmpp={pv_size}" # setting Pmpp same as kVA means no temperature degradation
+            storage_pv_str_list.append(new_pv_str)
+    # save the storage details to a file
+    with open(bess_dss_file, 'w') as dss_file:
+        for row in storage_pv_str_list:
+            dss_file.write(row+"\n")    
+    # make the main redirect to the BTM_BESS_and_PV.dss
+    new_main_lines = []
+    with open(opendss_main_file) as main_file:
+        main_lines = main_file.readlines()
+        for line in main_lines:
+            if line.startswith('Set Voltagebases'):
+                new_main_lines.append(f'Redirect {bess_file_name} \n')
+            new_main_lines.append(line)
+    with open(opendss_main_file, 'w') as main_file:
+        for line in new_main_lines:
+            main_file.write(line)
+
 if __name__ == "__main__":
     # first load the loadshape file
     if len(sys.argv)>1:
@@ -88,6 +152,19 @@ if __name__ == "__main__":
         dss_loads = dss.Loads.AllNames()
     else:
         dss_loads = []
-    bus_df = get_load_points(dss_loads)
-    bess_df = assign_battery_sizes(bus_df)
-    print(bess_df)
+    #bus_df = get_load_points(dss_loads)
+    #bess_df = assign_battery_sizes(bus_df)
+    #print(bess_df)
+
+
+    # read all sheets in xcel file and create the btms sizing dss file
+    # for pandas version >= 0.21.0
+    file_name = 'mhdv_depot_pv_and_storage_sizing.xlsx'
+    sheet_to_df_map = pd.ExcelFile(file_name)#, sheet_name=None)
+
+    ## for pandas version < 0.21.0
+    #sheet_to_df_map = pd.read_excel(file_name, sheetname=None)
+    for feeder in sheet_to_df_map.sheet_names:
+        bess_df = sheet_to_df_map.parse(feeder, index=False)
+        opendss_file = f'opendss/{feeder}/Master.dss'
+        add_btms_to_opendss_model(opendss_file, bess_df)
