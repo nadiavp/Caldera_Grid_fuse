@@ -4,6 +4,7 @@ import argparse, time
 import json
 from multiprocessing import Process
 import subprocess
+import pandas as pd
 path_to_here = os.path.abspath(os.path.dirname(sys.argv[0]))
 
 # Parse the command-line arguments
@@ -126,6 +127,8 @@ from nrel_control_voltwatt_ld_l2 import voltwatt_control
 from nrel_control_btms_ld_l2 import btms_control
 from nrel_control_market_l2 import market_control
 from nrel_control_xfmr_l2 import transformer_control
+# btms siting:
+from source.custom_controls import btms_siting
 
 #================================================
 
@@ -196,7 +199,7 @@ if __name__ == '__main__':
     ## P added 
     # feeder folders should be inside opendss folder
     feeder_name ='Hanover_01359' # 'Mercury_22370' # "ieee34" #'Shellbank_22700' #
-    scenario_name = "uncontrolled"
+    scenario_name = "uncontrolled" # change name to something with btms add ders
     
     # The full path to Master dss file
     if args["dss_full_path"] != None:
@@ -204,6 +207,15 @@ if __name__ == '__main__':
     else:
         dss_full_path = os.path.join(path_to_here, 'opendss', feeder_name, 'Master.dss')
     print('OpenDSS master file full path:', dss_full_path)
+    # if you are using behind the meter storage, add the ders to the opendss file 
+    add_btms_to_opendss_model = True
+    if 'btms' in scenario_name or add_btms_to_opendss_model:
+        btms_size_file_name = 'mhdv_depot_pv_and_storage_sizing.xlsx'
+        sheet_to_df_map = pd.ExcelFile(btms_size_file_name)#, sheet_name=None)
+        ## for pandas version < 0.21.0
+        #sheet_to_df_map = pd.read_excel(file_name, sheetname=None)
+        bess_df = sheet_to_df_map.parse(feeder_name, index=False)
+        btms_siting.add_btms_to_opendss_model(dss_full_path, bess_df)
     
     
     start_simulation_unix_time = int(start_simulation_unix_time)
@@ -282,6 +294,7 @@ if __name__ == '__main__':
     
     # OpenDSS Federate
     json_config_file_name = 'OpenDSS.json'
+
     p = Process(target=open_dss_federate, args=(io_dir, json_config_file_name, simulation_time_constraints, use_opendss, dss_full_path,), name="open_dss_federate")
     processes.append(p)
 	

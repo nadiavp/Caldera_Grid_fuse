@@ -82,7 +82,7 @@ def get_btms_siting(opendss_file):
     return bess_df
 
 def add_btms_to_opendss_model(opendss_main_file, bess_df):
-    print(f'creating dss file of storage from {opendss_file}')
+    print(f'creating dss file of storage from {opendss_main_file}')
     bess_file_name = 'BTM_BESS_and_PV.dss'
     bess_dss_file = opendss_main_file.replace('Master.dss',bess_file_name)
     # load the opendss model so that you can get the bus phases and voltages later
