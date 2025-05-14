@@ -330,6 +330,8 @@ class btms_control(typeB_control):
                 #=====================================================
                 # Solve optimization
                 #=====================================================
+                # Emin and Emax are for the whole node. To allow sell back, comment out the next line
+                Emin = [max(0, x) for x in Emin]
                 print(f'there are {len(active_CEs)} charge events and {len(storages_involved)} storages \n Emin is {Emin} \n Emax is {Emax}')
                 #p = non_pev_loads_forecast - pv_powers_forecast
                 p = bus_load_without_ev_ess
