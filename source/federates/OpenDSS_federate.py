@@ -141,9 +141,8 @@ def open_dss_federate(io_dir, json_config_file_name, simulation_time_constraints
         #-------------------------------------
         msg_obj = receive(typeB_control_endpoint)     
         
-        #for source, msg_dict in msg_obj.items():
-        #    dss_obj.process_control_messages(federate_time, msg_dict)
-        dss_obj.set_der_charge_controlb(msg_obj)
+        for source, msg_dict in msg_obj.items():
+            dss_obj.process_control_messages(federate_time, msg_dict)
 
         #-------------------------------------
         #   Read pev P&Q from Caldera_ICM         

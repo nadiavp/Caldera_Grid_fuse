@@ -93,6 +93,8 @@ def add_btms_to_opendss_model(opendss_main_file, bess_df):
     dss.Command(f'Redirect {opendss_main_file}')
     # initialize list of new storage and solar
     storage_pv_str_list = []
+    pv_shape = "New Loadshape.PVShape npts=24 interval=1 mult=(0 0 0 0 0 0 0.1 0.4 0.7 0.9 1 0.95 0.9 0.8 0.6 0.4 0.2 0.1 0 0 0 0 0 0)"
+    storage_pv_str_list.append(pv_shape)
     bus_phases = 1
     # add all the storage and PV as a lines in a new file
     bess_keys = bess_df.columns.values
@@ -125,7 +127,8 @@ def add_btms_to_opendss_model(opendss_main_file, bess_df):
         storage_pv_str_list.append(new_storage_str)
         # add PV
         if pv_size>0:
-            new_pv_str = f"New PVSystem.{bus_name} bus1={bus_name} phases={bus_phases} kV={bus_voltage} kVA={pv_size} Pmpp={pv_size}" # setting Pmpp same as kVA means no temperature degradation
+            new_pv_str = f"New PVSystem.{bus_name} bus1={bus_name} phases={bus_phases} kV={bus_voltage} kVA={pv_size} Pmpp={pv_size} irradiance=1.0 daily=PVShape" # setting Pmpp same as kVA means no temperature degradation
+            
             storage_pv_str_list.append(new_pv_str)
     # save the storage details to a file
     with open(bess_dss_file, 'w') as dss_file:
@@ -135,9 +138,13 @@ def add_btms_to_opendss_model(opendss_main_file, bess_df):
     new_main_lines = []
     with open(opendss_main_file) as main_file:
         main_lines = main_file.readlines()
+        added_redirect = False
         for line in main_lines:
-            if line.startswith('Set Voltagebases'):
+            if line.startswith(f'Redirect {bess_file_name}'):
+                added_redirect = True
+            if added_redirect == False and line.startswith('Set Voltagebases'):
                 new_main_lines.append(f'Redirect {bess_file_name} \n')
+                added_redirect = True
             new_main_lines.append(line)
     with open(opendss_main_file, 'w') as main_file:
         for line in new_main_lines:

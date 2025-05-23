@@ -160,6 +160,7 @@ class btms_control(typeB_control):
             #print(DER_data)
             Storage_SOC = DER_data["storage_SOC"]
             Storage_Capacity = DER_data["storage_cap_kwh"]
+            Storage_power_rating = DER_data['storage_power_kw']
             #Net_load = DER_data["Net_load"]
             storage_buses = DER_data["bus_name"]
             #print(f'DER_data stor soc: {DER_data["storage_SOC"]}')
@@ -173,7 +174,8 @@ class btms_control(typeB_control):
         #=================================
         #      Define BTM controller
         #=================================
-        btm_control = BTM_Control(time_step_mins=5, ess_size=Storage_Capacity, max_power_ess=40, min_power_ess=-40, 
+        # initialize with 0 energy storage, then update later with storage sizing specific to i_storage
+        btm_control = BTM_Control(time_step_mins=5, ess_size=Storage_Capacity, max_power_ess=0, min_power_ess=0, 
                                   max_power_l2=17.66, min_power_l2=1.5, time_horizon=1)
         # time_horizon is in hours
         #btm_control = BTM_Control(time_step_mins=5, ess_size=40, max_power_ess=40, min_power_ess=-40, 
@@ -200,7 +202,7 @@ class btms_control(typeB_control):
           
         
         i= -1     
-        for (group_id, active_CEs) in CE_by_SE_groups.items():
+        for (group_id, active_CEs) in CE_by_SE_groups.items(): # paralellize here
             i = i + 1   #i for interating trhough group node
             i_storage = -1
             storage_at_bus = False
@@ -211,7 +213,7 @@ class btms_control(typeB_control):
                 # find storage at buses with actie charge events
                 
                 storages_involved = []
-                bus_load_without_ev_ess = []
+                bus_load_without_ev_ess = list(np.zeros(int(btm_control.time_horizon*60/btm_control.time_step_mins)))
                 #ces_with_storage = []
                 active_buses = []
                 i_ce = 0
@@ -223,12 +225,12 @@ class btms_control(typeB_control):
                         if ce_bus in storage_buses:
                             i_storage = storage_buses.index(ce_bus)
                             storages_involved.append(i_storage)
-                            bus_load_without_ev_ess.append(Net_load[ce_bus])
+                            btm_control.max_power_ess = btm_control.max_power_ess + Storage_power_rating[i_storage]
+                            btm_control.min_power_ess = btm_control.min_power_ess - Storage_power_rating[i_storage]
+                            bus_load_without_ev_ess = [sum(x) for x in zip(Net_load[ce_bus], bus_load_without_ev_ess)]
                             #ces_with_storage.append(i_ce)
                             active_buses.append(ce_bus)
                             storage_at_bus = True
-                        else:
-                            bus_load_without_ev_ess = list(np.zeros(int(btm_control.time_horizon*60/btm_control.time_step_mins)))
                         i_ce = i_ce+1
                 # remove duplicates
                 storages_involved = list(set(storages_involved))
@@ -344,30 +346,32 @@ class btms_control(typeB_control):
                 #=====================================================
                 # Allocate setpoint
                 #=====================================================
-                Setpoint_storage, SetPoint_list = btm_control.allocate_setpoint(results.x[0], i_storage_soc, available_energy_ess, departure_times_Parse, energy_used_Parse)
-                
-                #Update SetPoint_Dict within the control with key being SE_id and value being Power
-                #Update Setpoint_storage within the control with key being node_ID and value being Power
-                
+        
+                #Step 3: Store results to pass to OpenDSS and update dataframe tracking soc
+                i_setp = 0
+                for i_storage in storages_involved:
+                    i_storage_soc = Storage_SOC_Parse[i_storage]
+                    available_energy_ess = (Storage_SOC_Parse[i_storage] - btm_control.ess_soc_min)*Storage_Capacity_Parse[i_storage]
+                    Setpoint_storage, SetPoint_list = btm_control.allocate_setpoint(results.x[0], i_storage_soc, available_energy_ess, departure_times_Parse, energy_used_Parse)
+                    ce_bus = active_buses[i_setp]
+                    #if not ce_bus in storage_powers_setpoints.keys():
+                    #    storage_powers_setpoints[ce_bus] = []
+                    storage_powers_setpoints[ce_bus] = Setpoint_storage
+
+                    #Step 3.5: if the storage isn't passed to OpenDSS save it in the dataframe
+                    ess_energy_used = Setpoint_storage*self.control_timestep_min/60
+                    DER_data['storage_SOC'][i_storage] = DER_data['storage_SOC'][i_storage] - ess_energy_used/Storage_Capacity_Parse[i_storage]
+                    i_setp = i_setp + 1
+                #print(f'storage_powers_setpoints: {storage_powers_setpoints}')
+
+
                 #Step 2: Store results to pass to Caldera
                 j = 0  #i for interating through active_CE
                 for SEs in SE_id_Parse:
                     Setpoint_updated[SEs] = SetPoint_list[j]
                     j = j + 1
-        
-                #Step 3: Store results to pass to OpenDSS and update dataframe tracking soc
-                i_setp = 0
-                for i_storage in storages_involved:
-                    ce_bus = active_buses[i_setp]
-                    if not ce_bus in storage_powers_setpoints.keys():
-                        storage_powers_setpoints[ce_bus] = []
-                    storage_powers_setpoints[ce_bus].append(Setpoint_storage[i_setp])
-
-                    #Step 3.5: if the storage isn't passed to OpenDSS save it in the dataframe
-                    ess_energy_used = Setpoint_storage[i_setp]*self.control_timestep_min/60
-                    DER_data['storage_SOC'][i_storage] = DER_data['storage_SOC'][i_storage] - ess_energy_used/DER_data['storage_cap'][i_storage]
-                    i_setp = i_setp + 1
-
+                #Update SetPoint_Dict within the control with key being SE_id and value being Power
+                #Update Setpoint_storage within the control with key being node_ID and value being Power
 
       
         #=================================

@@ -32,6 +32,7 @@ class OpenDSS_message_types(enum.Enum):
     get_all_node_voltages = 1
     get_all_DER = 2
     get_basenetloads = 3
+    set_storage_power = 4
 
 
 class Caldera_message_types(enum.Enum):
