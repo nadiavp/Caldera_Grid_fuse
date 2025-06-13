@@ -5,9 +5,10 @@ from global_aux import input_datasets, charge_event_builder
 
 class load_inputs_aux:
 
-    def __init__(self, io_dir, start_simulation_unix_time):
+    def __init__(self, io_dir, start_simulation_unix_time, feeder_name=None):
         self.io_dir = io_dir
         self.start_simulation_unix_time = start_simulation_unix_time
+        self.feeder_name = feeder_name
         
         self.SE_CE_data_obj = None
         self.baseLD_data_obj = None
@@ -19,7 +20,7 @@ class load_inputs_aux:
     def load(self):
         inputs_dir = self.io_dir.inputs_dir
     
-        load_obj = load_input_files(self.start_simulation_unix_time)
+        load_obj = load_input_files(self.start_simulation_unix_time, self.feeder_name)
         self.L2_control_strategies_to_include = load_obj.get_L2_control_strategies_to_include()
     
         (is_successful, self.SE_CE_data_obj, self.baseLD_data_obj, self.global_parameters, self.control_strategy_parameters_dict, self.EV_EVSE_inventory) = load_obj.load(inputs_dir)

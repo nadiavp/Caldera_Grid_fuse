@@ -198,8 +198,8 @@ if __name__ == '__main__':
     
     ## P added 
     # feeder folders should be inside opendss folder
-    feeder_name ='Hanover_01359' # 'Mercury_22370' # "ieee34" #'Shellbank_22700' #
-    scenario_name = "uncontrolled" # change name to something with btms add ders
+    feeder_name ='Acca_01363' #'Hanover_01359' # 'Mercury_22370' # "ieee34" #'Shellbank_22700' #
+    scenario_name = "btms_Acca_01363" # change name to something with btms add ders
     
     # The full path to Master dss file
     if args["dss_full_path"] != None:
@@ -283,7 +283,7 @@ if __name__ == '__main__':
 
     # Load Input Files Federate
     json_config_file_name = 'Load_Input_Files.json'
-    p = Process(target=load_inputs_federate, args=(io_dir, json_config_file_name, simulation_time_constraints,), name="load_inputs_federate")
+    p = Process(target=load_inputs_federate, args=(io_dir, json_config_file_name, simulation_time_constraints,feeder_name), name="load_inputs_federate")
     processes.append(p)
     
     # Caldera ICM Federate

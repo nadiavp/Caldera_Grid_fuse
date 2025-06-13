@@ -130,8 +130,10 @@ class load_input_files:
     class filepaths_class:
         pass
 
-    def __init__(self, start_simulation_unix_time):
+    def __init__(self, start_simulation_unix_time,feeder_name = None):
         self.start_simulation_unix_time = start_simulation_unix_time
+
+        self.feeder_name = feeder_name
         
         self.load_EV_EVSE_inventory = None
 
@@ -161,7 +163,12 @@ class load_input_files:
         for (root, dirs, files) in os.walk(dir_path):
             files_list = fnmatch.filter(files, file_search_name)            
             break
-            
+
+        if len(files_list) >1 and not self.feeder_name==None:
+            # if there is more than one CE, SE, etc. get the one with the feeder name
+            file_search_name = file_search_name.replace('*', '_*'+self.feeder_name)
+            files_list = fnmatch.filter(files, file_search_name)
+
         if len(files_list) == 1:
             file_path = os.path.join( dir_path, files_list[0] )
             
