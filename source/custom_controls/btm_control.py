@@ -139,7 +139,7 @@ class BTM_Control():
         tmp = [y/x for x, y in zip(depart_time_evse, energy_remaining_evse)]
         priority = [x/sum(tmp) for x in tmp]
         
-        setpoint_evse = [min(remaining_pwr*x, self.max_power_l2) for x in priority]
+        setpoint_evse = [remaining_pwr*x for x in priority]
         
         index = np.flip(np.argsort(setpoint_evse))
         for k in range(len(index)-1):
